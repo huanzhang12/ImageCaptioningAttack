@@ -16,6 +16,7 @@ py_binary(
     srcs = [
         "data/build_mscoco_data.py",
     ],
+    srcs_version = "PY2AND3",
 )
 
 sh_binary(
