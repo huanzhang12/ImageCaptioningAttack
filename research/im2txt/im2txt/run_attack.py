@@ -21,10 +21,12 @@ from __future__ import print_function
 import math
 import os
 import re
+import numpy as np
 
 import tensorflow as tf
 
 from im2txt import configuration
+from im2txt import attack_wrapper
 from im2txt import inference_wrapper
 from im2txt.inference_utils import caption_generator
 from im2txt.inference_utils import vocabulary
@@ -46,7 +48,8 @@ def main(_):
   # Build the inference graph.
   g = tf.Graph()
   with g.as_default():
-    model = inference_wrapper.InferenceWrapper()
+    
+    model = attack_wrapper.AttackWrapper()
     restore_fn = model.build_graph_from_config(configuration.ModelConfig(),
                                                FLAGS.checkpoint_path)
   g.finalize()
@@ -67,29 +70,21 @@ def main(_):
     # Prepare the caption generator. Here we are implicitly using the default
     # beam search parameters. See caption_generator.py for a description of the
     # available beam search parameters.
-    generator = caption_generator.CaptionGenerator(model, vocab)
+    
 
     for filename in filenames:
       with tf.gfile.GFile(filename, "rb") as f:
         image = f.read()
       
-      captions = generator.beam_search(sess, image)
-      print("Captions for image %s:" % os.path.basename(filename))
-      for i, caption in enumerate(captions):
-        # Ignore begin and end words.
-        sentence = [vocab.id_to_word(w) for w in caption.sentence[1:-1]]
-        sentence = " ".join(sentence)
-        print("  %d) %s (p=%f)" % (i, sentence, math.exp(caption.logprob)))
-        print(caption.sentence)
-        # print(generator.new_caption_prob(sess, caption.sentence, image))
-        print(model.new_caption_prob(sess, caption.sentence, image))
-      
       new_sentence = "kite"
+      new_sentence = "a man riding a wave on top of a surfboard ."
       new_sentence = new_sentence.split()
       print("My new sentence:", new_sentence)
       new_caption = [vocab.start_id]+[vocab.word_to_id(w) for w in new_sentence] + [vocab.end_id]
+      new_caption=[new_caption]
       print("My new id:", new_caption)
-      print(model.new_caption_prob(sess, new_caption, image))
+      new_mask = np.ones(np.shape(new_caption))
+      print("Probability by attack_step:", model.attack_step(sess, new_caption, new_mask, image))
 
 if __name__ == "__main__":
   tf.app.run()

@@ -209,3 +209,16 @@ class CaptionGenerator(object):
       complete_captions = partial_captions
 
     return complete_captions.extract(sort=True)
+
+  def new_caption_prob(self, sess, cap_sentence, encoded_image):
+    logprob=0.0
+    state_feed = self.model.feed_image(sess, encoded_image)
+    state_feed = np.array([state_feed[0]])
+    for i in range(len(cap_sentence)-1):
+      input_feed = np.array([cap_sentence[i]])
+      softmax, new_state, metadata = self.model.inference_step(sess,input_feed,state_feed)
+      state_feed = new_state
+      next_word_probability = softmax[0][cap_sentence[i+1]]
+      logprob = logprob + math.log(next_word_probability)
+    return math.exp(logprob)
+

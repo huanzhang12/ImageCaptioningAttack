@@ -95,3 +95,27 @@ py_binary(
         "//im2txt/inference_utils:vocabulary",
     ],
 )
+
+py_library(
+    name = "attack_wrapper",
+    srcs = ["attack_wrapper.py"],
+    srcs_version = "PY2AND3",
+    deps = [
+        ":show_and_tell_model",
+        "//im2txt/inference_utils:inference_wrapper_base",
+    ],
+)
+
+py_binary(
+    name = "run_attack",
+    srcs = ["run_attack.py"],
+    srcs_version = "PY2AND3",
+    deps = [
+        ":configuration",
+        ":attack_wrapper",
+	":inference_wrapper",
+        "//im2txt/inference_utils:caption_generator",
+        "//im2txt/inference_utils:vocabulary",
+    ],
+)
+

@@ -13,7 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 
-"""Model wrapper class for performing inference with a ShowAndTellModel."""
+"""Model wrapper class for performing attack with a ShowAndTellModel."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -26,15 +26,16 @@ from im2txt import show_and_tell_model
 from im2txt.inference_utils import inference_wrapper_base
 
 
-class InferenceWrapper(inference_wrapper_base.InferenceWrapperBase):
-  """Model wrapper class for performing inference with a ShowAndTellModel."""
+class AttackWrapper(inference_wrapper_base.InferenceWrapperBase):
+  """Model wrapper class for performing attack with a ShowAndTellModel."""
 
   def __init__(self):
-    super(InferenceWrapper, self).__init__()
+    super(AttackWrapper, self).__init__()
 
   def build_model(self, model_config):
-    model = show_and_tell_model.ShowAndTellModel(model_config, mode="inference")
+    model = show_and_tell_model.ShowAndTellModel(model_config, mode="attack")
     model.build()
+    self.model = model
     return model
 
   def feed_image(self, sess, encoded_image):
@@ -42,24 +43,31 @@ class InferenceWrapper(inference_wrapper_base.InferenceWrapperBase):
                              feed_dict={"image_feed:0": encoded_image})
     return initial_state
 
-  def inference_step(self, sess, input_feed, state_feed):
-    softmax_output, state_output = sess.run(
-        fetches=["softmax:0", "lstm/state:0"],
+  def attack_step(self, sess, input_feed, mask_feed,image_feed):
+    
+    target_cross_entropy_losses = sess.run(
+        fetches=[self.model.target_cross_entropy_losses],
         feed_dict={
             "input_feed:0": input_feed,
-            "lstm/state_feed:0": state_feed,
+            "input_mask:0": mask_feed,
+            "image_feed:0": image_feed
         })
-    return softmax_output, state_output, None
-
+    return math.exp(-np.sum(target_cross_entropy_losses))
+  '''
   def new_caption_prob(self, sess, cap_sentence, encoded_image):
     logprob=0.0
     state_feed = self.feed_image(sess, encoded_image)
     state_feed = np.array([state_feed[0]])
-    print(len(cap_sentence))
     for i in range(len(cap_sentence)-1):
       input_feed = np.array([cap_sentence[i]])
-      softmax, new_state, metadata = self.inference_step(sess,input_feed,state_feed)
+
+      softmax, new_state, metadata = self.attack_step(sess,input_feed,np.ones(np.shape(input_feed)),encoded_image)
       state_feed = new_state
       next_word_probability = softmax[0][cap_sentence[i+1]]
       logprob = logprob + math.log(next_word_probability)
     return math.exp(logprob)
+  '''
+  
+
+  
+    

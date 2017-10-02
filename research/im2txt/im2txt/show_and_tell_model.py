@@ -46,7 +46,7 @@ class ShowAndTellModel(object):
       mode: "train", "eval" or "inference".
       train_inception: Whether the inception submodel variables are trainable.
     """
-    assert mode in ["train", "eval", "inference"]
+    assert mode in ["train", "eval", "inference","attack"]
     self.config = config
     self.mode = mode
     self.train_inception = train_inception
@@ -141,6 +141,20 @@ class ShowAndTellModel(object):
       # No target sequences or input mask in inference mode.
       target_seqs = None
       input_mask = None
+    elif self.mode == "attack":
+      # In inference mode, images and inputs are fed via placeholders.
+      image_feed = tf.placeholder(dtype=tf.string, shape=[], name="image_feed")
+      input_feed = tf.placeholder(dtype=tf.int64,
+                                  shape=[None,None],  # batch_size
+                                  name="input_feed")
+
+      # Process image and insert batch dimensions.
+      images = tf.expand_dims(self.process_image(image_feed), 0)
+      # input_seqs = input_feed
+      input_seqs = tf.slice(input_feed, [0, 0], [-1, tf.shape(input_feed)[1]-1])
+      target_seqs = tf.slice(input_feed, [0, 1], [-1, -1])
+      
+      input_mask = tf.placeholder(dtype=tf.int64,shape=[None,None], name="input_mask")
     else:
       # Prefetch serialized SequenceExample protos.
       input_queue = input_ops.prefetch_input_data(
@@ -356,3 +370,6 @@ class ShowAndTellModel(object):
     self.build_model()
     self.setup_inception_initializer()
     self.setup_global_step()
+  
+
+
