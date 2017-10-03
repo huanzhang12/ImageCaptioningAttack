@@ -322,7 +322,8 @@ class ShowAndTellModel(object):
 
       # Compute losses.
       losses = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=targets,
-                                                              logits=logits)
+                                                              logits=logits,
+                                                              name="softmax_and_cross_entropy")
       batch_loss = tf.div(tf.reduce_sum(tf.multiply(losses, weights)),
                           tf.reduce_sum(weights),
                           name="batch_loss")

@@ -52,7 +52,7 @@ def main(_):
     model = attack_wrapper.AttackWrapper()
     restore_fn = model.build_graph_from_config(configuration.ModelConfig(),
                                                FLAGS.checkpoint_path)
-  g.finalize()
+  # g.finalize()
 
   # Create the vocabulary.
   vocab = vocabulary.Vocabulary(FLAGS.vocab_file)
@@ -85,6 +85,19 @@ def main(_):
       print("My new id:", new_caption)
       new_mask = np.ones(np.shape(new_caption))
       print("Probability by attack_step:", model.attack_step(sess, new_caption, new_mask, image))
+      
+      # testing computation graph
+      image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
+      caption_placeholder = tf.placeholder(dtype=tf.int64, shape=[None,None])
+      mask_placeholder = tf.placeholder(dtype=tf.int64,shape=[None,None])
+      endpoint = model.predict(sess, caption_placeholder, mask_placeholder, image_placeholder)
+      log_probs = sess.run(endpoint, 
+              feed_dict={
+                  caption_placeholder: new_caption,
+                  mask_placeholder: new_mask,
+                  image_placeholder: image
+              })
+      print("Probability by predict:", math.exp(-np.sum(log_probs)))
 
 if __name__ == "__main__":
   tf.app.run()

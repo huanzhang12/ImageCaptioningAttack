@@ -18,13 +18,14 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+import tensorflow as tf
+from tensorflow.python.framework import graph_util
 import numpy as np
 import math
 
 
 from im2txt import show_and_tell_model
 from im2txt.inference_utils import inference_wrapper_base
-
 
 class AttackWrapper(inference_wrapper_base.InferenceWrapperBase):
   """Model wrapper class for performing attack with a ShowAndTellModel."""
@@ -43,8 +44,9 @@ class AttackWrapper(inference_wrapper_base.InferenceWrapperBase):
                              feed_dict={"image_feed:0": encoded_image})
     return initial_state
 
+  # input feed, mask_feed and image_feed are numpy arrays
+  # returns a number
   def attack_step(self, sess, input_feed, mask_feed,image_feed):
-    
     target_cross_entropy_losses = sess.run(
         fetches=[self.model.target_cross_entropy_losses],
         feed_dict={
@@ -53,6 +55,24 @@ class AttackWrapper(inference_wrapper_base.InferenceWrapperBase):
             "image_feed:0": image_feed
         })
     return math.exp(-np.sum(target_cross_entropy_losses))
+
+  # input feed, mask_feed and image_feed are tensors
+  # returns a tensor
+  def predict(self, sess, input_feed, mask_feed, image_feed):
+    model_graph_def = sess.graph.as_graph_def()
+    frozen_model_graph_def = graph_util.convert_variables_to_constants(sess,
+            model_graph_def,
+            ["softmax_and_cross_entropy/softmax_and_cross_entropy"])
+    sum_log_probs = tf.import_graph_def(
+            frozen_model_graph_def,
+            input_map={
+              "input_feed:0": input_feed,
+              "input_mask:0": mask_feed,
+              "image_feed:0": image_feed
+              },
+            return_elements=[self.model.target_cross_entropy_losses.name])
+    return sum_log_probs
+
   '''
   def new_caption_prob(self, sess, cap_sentence, encoded_image):
     logprob=0.0
