@@ -76,6 +76,13 @@ def main(_):
       with tf.gfile.GFile(filename, "rb") as f:
         image = f.read()
       
+      # preprocess image
+      # testing computation graph
+      image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
+      preprocessor = model.model.process_image(image_placeholder)
+      raw_image = sess.run(preprocessor, feed_dict = {image_placeholder: image})
+      print('raw image size:', raw_image.shape)
+
       new_sentence = "kite"
       new_sentence = "a man riding a wave on top of a surfboard ."
       new_sentence = new_sentence.split()
@@ -84,20 +91,22 @@ def main(_):
       new_caption=[new_caption]
       print("My new id:", new_caption)
       new_mask = np.ones(np.shape(new_caption))
-      print("Probability by attack_step:", model.attack_step(sess, new_caption, new_mask, image))
+      print("Probability by attack_step:", model.attack_step(sess, new_caption, new_mask, raw_image))
       
-      # testing computation graph
-      image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
+      raw_image_placeholder = tf.placeholder(dtype=tf.float32, 
+                                             shape=[299, 299, 3])
       caption_placeholder = tf.placeholder(dtype=tf.int64, shape=[None,None])
       mask_placeholder = tf.placeholder(dtype=tf.int64,shape=[None,None])
-      endpoint = model.predict(sess, caption_placeholder, mask_placeholder, image_placeholder)
-      log_probs = sess.run(endpoint, 
+      endpoint = model.predict(sess, caption_placeholder, mask_placeholder, raw_image_placeholder)
+      grad_op = tf.gradients(endpoint, raw_image_placeholder)
+      grads, log_probs = sess.run(grad_op, endpoint, 
               feed_dict={
                   caption_placeholder: new_caption,
                   mask_placeholder: new_mask,
-                  image_placeholder: image
+                  raw_image_placeholder: raw_image
               })
       print("Probability by predict:", math.exp(-np.sum(log_probs)))
+      print(grads)
 
 if __name__ == "__main__":
   tf.app.run()

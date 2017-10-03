@@ -142,14 +142,18 @@ class ShowAndTellModel(object):
       target_seqs = None
       input_mask = None
     elif self.mode == "attack":
-      # In inference mode, images and inputs are fed via placeholders.
-      image_feed = tf.placeholder(dtype=tf.string, shape=[], name="image_feed")
+      # In attack mode, images and inputs are fed via placeholders.
+      # Image is feed as [None, 299, 299, 3]
+      # TODO: batch size is fixed at 1
+      image_feed = tf.placeholder(dtype=tf.float32, 
+                                  shape=[self.config.image_height, self.config.image_width, 3], 
+                                  name="image_raw_feed")
       input_feed = tf.placeholder(dtype=tf.int64,
                                   shape=[None,None],  # batch_size
                                   name="input_feed")
 
       # Process image and insert batch dimensions.
-      images = tf.expand_dims(self.process_image(image_feed), 0)
+      images = tf.expand_dims(image_feed, 0)
       # input_seqs = input_feed
       input_seqs = tf.slice(input_feed, [0, 0], [-1, tf.shape(input_feed)[1]-1])
       target_seqs = tf.slice(input_feed, [0, 1], [-1, -1])
