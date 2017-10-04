@@ -23,7 +23,9 @@ from tensorflow.python.framework import graph_util
 import numpy as np
 import math
 
+FLAGS = tf.flags.FLAGS
 
+from im2txt import configuration
 from im2txt import show_and_tell_model
 from im2txt.inference_utils import inference_wrapper_base
 
@@ -32,10 +34,13 @@ class AttackWrapper(inference_wrapper_base.InferenceWrapperBase):
 
   def __init__(self):
     super(AttackWrapper, self).__init__()
+    # TODO: change this based on configuration
+    self.image_size = 299
+    self.num_channels = 3
 
-  def build_model(self, model_config):
+  def build_model(self, model_config, image_raw_feed = None, input_feed = None, mask_feed = None):
     model = show_and_tell_model.ShowAndTellModel(model_config, mode="attack")
-    model.build()
+    model.build(image_raw_feed, input_feed, mask_feed)
     self.model = model
     return model
 
@@ -60,19 +65,16 @@ class AttackWrapper(inference_wrapper_base.InferenceWrapperBase):
 
   # input feed, mask_feed and image_feed are tensors
   # returns a tensor
-  def predict(self, sess, input_feed, mask_feed, image_raw_feed):
-    model_graph_def = sess.graph.as_graph_def()
-    frozen_model_graph_def = graph_util.convert_variables_to_constants(sess,
-            model_graph_def,
-            ["softmax_and_cross_entropy/softmax_and_cross_entropy"])
-    sum_log_probs = tf.import_graph_def(
-            frozen_model_graph_def,
-            input_map={
-              "input_feed:0": input_feed,
-              "input_mask:0": mask_feed,
-              "image_raw_feed:0": image_raw_feed
-              },
-            return_elements=[self.model.target_cross_entropy_losses.name])
+  def predict(self, sess, image_raw_feed, input_feed, mask_feed):
+    tf.logging.info("Building model.")
+    start_vars = set(x.name for x in tf.global_variables())
+    self.build_model(configuration.ModelConfig(), image_raw_feed, input_feed, mask_feed)
+    end_vars = tf.global_variables()
+    restore_vars = [x for x in end_vars if x.name not in start_vars]
+    saver = tf.train.Saver(var_list = restore_vars)
+    restore_fn = self._create_restore_fn(FLAGS.checkpoint_path, saver)
+    restore_fn(sess)
+    sum_log_probs = sess.graph.get_tensor_by_name("batch_loss:0")
     return sum_log_probs
 
   '''

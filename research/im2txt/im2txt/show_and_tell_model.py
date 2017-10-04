@@ -118,7 +118,7 @@ class ShowAndTellModel(object):
                                           thread_id=thread_id,
                                           image_format=self.config.image_format)
 
-  def build_inputs(self):
+  def build_inputs(self, image_feed=None, input_feed=None, input_mask=None):
     """Input prefetching, preprocessing and batching.
 
     Outputs:
@@ -145,20 +145,15 @@ class ShowAndTellModel(object):
       # In attack mode, images and inputs are fed via placeholders.
       # Image is feed as [None, 299, 299, 3]
       # TODO: batch size is fixed at 1
-      image_feed = tf.placeholder(dtype=tf.float32, 
-                                  shape=[self.config.image_height, self.config.image_width, 3], 
-                                  name="image_raw_feed")
-      input_feed = tf.placeholder(dtype=tf.int64,
-                                  shape=[None,None],  # batch_size
-                                  name="input_feed")
 
       # Process image and insert batch dimensions.
-      images = tf.expand_dims(image_feed, 0)
+      # images = tf.expand_dims(image_feed, 0)
+      images = image_feed
       # input_seqs = input_feed
       input_seqs = tf.slice(input_feed, [0, 0], [-1, tf.shape(input_feed)[1]-1])
       target_seqs = tf.slice(input_feed, [0, 1], [-1, -1])
+      input_mask = tf.slice(input_mask, [0, 1], [-1, -1])
       
-      input_mask = tf.placeholder(dtype=tf.int64,shape=[None,None], name="input_mask")
     else:
       # Prefetch serialized SequenceExample protos.
       input_queue = input_ops.prefetch_input_data(
@@ -328,9 +323,12 @@ class ShowAndTellModel(object):
       losses = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=targets,
                                                               logits=logits,
                                                               name="softmax_and_cross_entropy")
+      """
       batch_loss = tf.div(tf.reduce_sum(tf.multiply(losses, weights)),
                           tf.reduce_sum(weights),
                           name="batch_loss")
+      """
+      batch_loss = tf.reduce_sum(tf.multiply(losses, weights), name="batch_loss")
       tf.losses.add_loss(batch_loss)
       total_loss = tf.losses.get_total_loss()
 
@@ -367,9 +365,12 @@ class ShowAndTellModel(object):
 
     self.global_step = global_step
 
-  def build(self):
+  def build(self, image_feed=None, input_feed=None, input_mask=None):
     """Creates all ops for training and evaluation."""
-    self.build_inputs()
+    if self.mode=="attack":
+      self.build_inputs(image_feed=image_feed, input_feed=input_feed, input_mask=input_mask)
+    else:
+      self.build_inputs()
     self.build_image_embeddings()
     self.build_seq_embeddings()
     self.build_model()

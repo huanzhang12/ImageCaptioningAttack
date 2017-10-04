@@ -17,7 +17,7 @@ r"""Generate captions for images using default beam search parameters."""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-
+from l2_attack import CarliniL2
 import math
 import os
 import re
@@ -31,6 +31,8 @@ from im2txt import inference_wrapper
 from im2txt.inference_utils import caption_generator
 from im2txt.inference_utils import vocabulary
 
+from PIL import Image
+
 FLAGS = tf.flags.FLAGS
 
 tf.flags.DEFINE_string("checkpoint_path", "",
@@ -43,8 +45,19 @@ tf.flags.DEFINE_string("input_files", "",
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
+def show(img, name = "output.png"):
+    """
+    Show MNSIT digits in the console.
+    """
+    np.save(name, img)
+    fig = (img + 1.0) / 2.0 * 255
+    fig = fig.astype(np.uint8).squeeze()
+    pic = Image.fromarray(fig)
+    # pic.resize((512,512), resample=PIL.Image.BICUBIC)
+    pic.save(name)
 
 def main(_):
+  '''
   # Build the inference graph.
   g = tf.Graph()
   with g.as_default():
@@ -55,58 +68,58 @@ def main(_):
   # g.finalize()
 
   # Create the vocabulary.
+  '''
+  tf.set_random_seed(1234)
+  model = attack_wrapper.AttackWrapper()
   vocab = vocabulary.Vocabulary(FLAGS.vocab_file)
-
+  sess = tf.Session()
+  attack = CarliniL2(sess, model, targeted = True, batch_size=1, initial_const = 10.0, max_iterations=300, print_every=1, confidence=0, use_log=False, abort_early=False, learning_rate=0.0005)
+  
   filenames = []
   for file_pattern in FLAGS.input_files.split(","):
     filenames.extend(tf.gfile.Glob(file_pattern))
   tf.logging.info("Running caption generation on %d files matching %s",
                   len(filenames), FLAGS.input_files)
 
-  with tf.Session(graph=g) as sess:
-    # Load the model from checkpoint.
-    restore_fn(sess)
+  # Prepare the caption generator. Here we are implicitly using the default
+  # beam search parameters. See caption_generator.py for a description of the
+  # available beam search parameters.
+  
+  # preprocessing compute graph
+  image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
+  preprocessor = model.model.process_image(image_placeholder)
+  for filename in filenames:
 
-    # Prepare the caption generator. Here we are implicitly using the default
-    # beam search parameters. See caption_generator.py for a description of the
-    # available beam search parameters.
+    with tf.gfile.GFile(filename, "rb") as f:
+      image = f.read()
     
+    # preprocess image
+    # testing computation graph
+    raw_image = sess.run(preprocessor, feed_dict = {image_placeholder: image})
+    print('raw image size:', raw_image.shape)
 
-    for filename in filenames:
-      with tf.gfile.GFile(filename, "rb") as f:
-        image = f.read()
+    new_sentence = "kite"
+    new_sentence = "a man on a surfboard riding a wave ."
+    new_sentence = "a man riding a wave on top of a surfboard ."
+    new_sentence = new_sentence.split()
+    print("My new sentence:", new_sentence)
+    max_caption_length = 20
+    new_caption = [vocab.start_id]+[vocab.word_to_id(w) for w in new_sentence] + [vocab.end_id]
+    true_cap_len = len(new_caption)
+    new_caption = new_caption + [vocab.end_id]*(max_caption_length-true_cap_len)
+
+    new_caption = [new_caption]
+    print("My new id:", new_caption)
+    new_mask = np.append(np.ones(true_cap_len),np.zeros(max_caption_length-true_cap_len))
+    # print("Probability by attack_step:", model.attack_step(sess, new_caption, new_mask, raw_image))
+    
+    adv = attack.attack(np.array([raw_image]), new_caption, [new_mask])
+    l2_distortion = np.sum((adv - raw_image)**2)**.5
+    print("L2 distortion is", l2_distortion)
+    show(raw_image, "original.png")
+    show(adv, "output.png")
+    show(adv - raw_image, "diff.png")
+    
       
-      # preprocess image
-      # testing computation graph
-      image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
-      preprocessor = model.model.process_image(image_placeholder)
-      raw_image = sess.run(preprocessor, feed_dict = {image_placeholder: image})
-      print('raw image size:', raw_image.shape)
-
-      new_sentence = "kite"
-      new_sentence = "a man riding a wave on top of a surfboard ."
-      new_sentence = new_sentence.split()
-      print("My new sentence:", new_sentence)
-      new_caption = [vocab.start_id]+[vocab.word_to_id(w) for w in new_sentence] + [vocab.end_id]
-      new_caption=[new_caption]
-      print("My new id:", new_caption)
-      new_mask = np.ones(np.shape(new_caption))
-      print("Probability by attack_step:", model.attack_step(sess, new_caption, new_mask, raw_image))
-      
-      raw_image_placeholder = tf.placeholder(dtype=tf.float32, 
-                                             shape=[299, 299, 3])
-      caption_placeholder = tf.placeholder(dtype=tf.int64, shape=[None,None])
-      mask_placeholder = tf.placeholder(dtype=tf.int64,shape=[None,None])
-      endpoint = model.predict(sess, caption_placeholder, mask_placeholder, raw_image_placeholder)
-      grad_op = tf.gradients(endpoint, raw_image_placeholder)
-      grads, log_probs = sess.run(grad_op, endpoint, 
-              feed_dict={
-                  caption_placeholder: new_caption,
-                  mask_placeholder: new_mask,
-                  raw_image_placeholder: raw_image
-              })
-      print("Probability by predict:", math.exp(-np.sum(log_probs)))
-      print(grads)
-
 if __name__ == "__main__":
   tf.app.run()
