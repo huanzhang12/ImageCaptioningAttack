@@ -111,6 +111,7 @@ class ShowAndTellModel(object):
     Returns:
       A float32 Tensor of shape [height, width, 3]; the processed image.
     """
+
     return image_processing.process_image(encoded_image,
                                           is_training=self.is_training(),
                                           height=self.config.image_height,
@@ -129,13 +130,18 @@ class ShowAndTellModel(object):
     """
     if self.mode == "inference":
       # In inference mode, images and inputs are fed via placeholders.
-      image_feed = tf.placeholder(dtype=tf.string, shape=[], name="image_feed")
+      
+      image_feed = tf.placeholder(dtype=tf.float32, shape=[self.config.image_height,self.config.image_width,3], name="image_feed")
+      
+
       input_feed = tf.placeholder(dtype=tf.int64,
                                   shape=[None],  # batch_size
                                   name="input_feed")
 
       # Process image and insert batch dimensions.
-      images = tf.expand_dims(self.process_image(image_feed), 0)
+      
+
+      images = tf.expand_dims(image_feed, 0)
       input_seqs = tf.expand_dims(input_feed, 1)
 
       # No target sequences or input mask in inference mode.

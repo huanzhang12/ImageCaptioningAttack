@@ -35,6 +35,7 @@ class InferenceWrapper(inference_wrapper_base.InferenceWrapperBase):
   def build_model(self, model_config):
     model = show_and_tell_model.ShowAndTellModel(model_config, mode="inference")
     model.build()
+    self.model = model
     return model
 
   def feed_image(self, sess, encoded_image):

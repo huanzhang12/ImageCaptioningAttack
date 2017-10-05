@@ -22,6 +22,7 @@ import math
 import os
 import re
 
+import numpy as np
 import tensorflow as tf
 
 from im2txt import configuration
@@ -49,6 +50,10 @@ def main(_):
     model = inference_wrapper.InferenceWrapper()
     restore_fn = model.build_graph_from_config(configuration.ModelConfig(),
                                                FLAGS.checkpoint_path)
+    # preprocessing compute graph
+    image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
+    preprocessor = model.model.process_image(image_placeholder)
+
   g.finalize()
 
   # Create the vocabulary.
@@ -60,9 +65,11 @@ def main(_):
   tf.logging.info("Running caption generation on %d files matching %s",
                   len(filenames), FLAGS.input_files)
 
+
   with tf.Session(graph=g) as sess:
     # Load the model from checkpoint.
     restore_fn(sess)
+
 
     # Prepare the caption generator. Here we are implicitly using the default
     # beam search parameters. See caption_generator.py for a description of the
@@ -70,9 +77,16 @@ def main(_):
     generator = caption_generator.CaptionGenerator(model, vocab)
 
     for filename in filenames:
-      with tf.gfile.GFile(filename, "rb") as f:
-        image = f.read()
-      
+      _, file_extension = os.path.splitext(filename)
+      if file_extension == ".npy":
+        # load numpy array
+        image = np.squeeze(np.load(filename))
+      else:
+        with tf.gfile.GFile(filename, "rb") as f:
+          image = f.read()
+          image = sess.run(preprocessor, {image_placeholder: image})
+          print('raw image shape is', image.shape)
+    
       captions = generator.beam_search(sess, image)
       print("Captions for image %s:" % os.path.basename(filename))
       for i, caption in enumerate(captions):

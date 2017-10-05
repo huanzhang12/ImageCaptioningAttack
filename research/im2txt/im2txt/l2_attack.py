@@ -125,8 +125,8 @@ class CarliniL2:
         self.loss2 = tf.reduce_sum(self.l2dist)
         # self.loss2 = tf.constant(0.0)
         self.loss1 = tf.reduce_sum(self.const*loss1)
-        # self.loss = self.loss1+self.loss2
-        self.loss = self.loss1
+        self.loss = self.loss1+self.loss2
+        # self.loss = self.loss1
         
         # Setup the adam optimizer and keep track of variables we're creating
         start_vars = set(x.name for x in tf.global_variables())

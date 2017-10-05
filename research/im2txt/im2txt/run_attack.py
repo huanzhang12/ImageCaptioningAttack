@@ -50,7 +50,7 @@ def show(img, name = "output.png"):
     Show MNSIT digits in the console.
     """
     np.save(name, img)
-    fig = (img + 1.0) / 2.0 * 255
+    fig = np.around((img + 1.0) / 2.0 * 255)
     fig = fig.astype(np.uint8).squeeze()
     pic = Image.fromarray(fig)
     # pic.resize((512,512), resample=PIL.Image.BICUBIC)
@@ -73,7 +73,7 @@ def main(_):
   model = attack_wrapper.AttackWrapper()
   vocab = vocabulary.Vocabulary(FLAGS.vocab_file)
   sess = tf.Session()
-  attack = CarliniL2(sess, model, targeted = True, batch_size=1, initial_const = 10.0, max_iterations=300, print_every=1, confidence=0, use_log=False, abort_early=False, learning_rate=0.0005)
+  attack = CarliniL2(sess, model, targeted = True, batch_size=1, initial_const = 1.0, max_iterations=300, print_every=1, confidence=0, use_log=False, abort_early=False, learning_rate=0.002)
   
   filenames = []
   for file_pattern in FLAGS.input_files.split(","):
