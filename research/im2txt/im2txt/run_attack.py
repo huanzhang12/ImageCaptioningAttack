@@ -73,7 +73,7 @@ def main(_):
   model = attack_wrapper.AttackWrapper()
   vocab = vocabulary.Vocabulary(FLAGS.vocab_file)
   sess = tf.Session()
-  attack = CarliniL2(sess, model, targeted = True, batch_size=1, initial_const = 1.0, max_iterations=300, print_every=1, confidence=0, use_log=False, abort_early=False, learning_rate=0.002)
+  attack = CarliniL2(sess, model, targeted = True, batch_size=1, initial_const = 10.0, max_iterations=1000, print_every=1, confidence=0, use_log=False, abort_early=False, learning_rate=0.001)
   
   filenames = []
   for file_pattern in FLAGS.input_files.split(","):
@@ -100,7 +100,11 @@ def main(_):
 
     new_sentence = "kite"
     new_sentence = "a man on a surfboard riding a wave ."
-    new_sentence = "a man riding a wave on top of a surfboard ."
+    new_sentence = "a dog riding a bike on a road ."
+    new_sentence = "a group of giraffe standing next to each other ." # success, p=0.016556
+    new_sentence = "a person skiing down a snow covered slope ." # success, p=0.021917
+    new_sentence = "a person on a beach flying a kite ." # success, p=0.019417
+    new_sentence = "a black and white photo of a train on a track ." # success, p=0.006146
     new_sentence = new_sentence.split()
     print("My new sentence:", new_sentence)
     max_caption_length = 20
@@ -117,7 +121,7 @@ def main(_):
     l2_distortion = np.sum((adv - raw_image)**2)**.5
     print("L2 distortion is", l2_distortion)
     show(raw_image, "original.png")
-    show(adv, "output.png")
+    show(adv, "adversarial.png")
     show(adv - raw_image, "diff.png")
     
       

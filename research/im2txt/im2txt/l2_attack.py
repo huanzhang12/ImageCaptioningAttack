@@ -120,22 +120,24 @@ class CarliniL2:
                 loss1 = tf.maximum(0.0, self.real-self.other+self.CONFIDENCE)
         '''
 
-        loss1 = - self.output
+        # loss1 = - self.output
+        loss1 = self.output
         # sum up the losses
         self.loss2 = tf.reduce_sum(self.l2dist)
         # self.loss2 = tf.constant(0.0)
         self.loss1 = tf.reduce_sum(self.const*loss1)
-        self.loss = self.loss1+self.loss2
-        # self.loss = self.loss1
+        # self.loss = self.loss1+self.loss2
+        self.loss = self.loss1
         
         # Setup the adam optimizer and keep track of variables we're creating
         start_vars = set(x.name for x in tf.global_variables())
         # optimizer = tf.train.GradientDescentOptimizer(self.LEARNING_RATE)
-        # optimizer = tf.train.MomentumOptimizer(self.LEARNING_RATE, 0.99)
-        # optimizer = tf.train.RMSPropOptimizer(self.LEARNING_RATE)
+        # optimizer = tf.train.MomentumOptimizer(self.LEARNING_RATE, 0.99, use_nesterov = True)
+        # optimizer = tf.train.RMSPropOptimizer(self.LEARNING_RATE, centered = True, momentum = 0.9)
         # optimizer = tf.train.AdadeltaOptimizer(self.LEARNING_RATE)
-        optimizer = tf.train.AdamOptimizer(self.LEARNING_RATE, adam_beta1, adam_beta2)
-        self.train = optimizer.minimize(self.loss, var_list=[self.modifier])
+        # optimizer = tf.train.AdamOptimizer(self.LEARNING_RATE, adam_beta1, adam_beta2)
+        # self.train = optimizer.minimize(self.loss, var_list=[self.modifier])
+        self.train = self.adam_optimizer_tf(self.loss, self.modifier)
         end_vars = tf.global_variables()
         new_vars = [x for x in end_vars if x.name not in start_vars]
 
@@ -148,6 +150,54 @@ class CarliniL2:
         # self.grad_op = tf.gradients(self.loss, self.modifier)
         
         self.init = tf.variables_initializer(var_list=[self.modifier]+new_vars)
+
+
+    def adam_optimizer_tf(self, loss, var):
+        with tf.name_scope("adam_optimier"):
+            self.grad = tf.gradients(loss, var)[0]
+            self.noise = tf.random_normal(self.grad.shape, 0.0, 1.0)
+            self.beta1 = tf.constant(0.9)
+            self.beta2 = tf.constant(0.999)
+            self.lr = tf.constant(self.LEARNING_RATE)
+            self.epsilon = 1e-8
+            self.epoch = tf.Variable(0, dtype = tf.float32)
+            self.mt = tf.Variable(np.zeros(var.shape), dtype = tf.float32)
+            self.vt = tf.Variable(np.zeros(var.shape), dtype = tf.float32)
+
+            new_mt = self.beta1 * self.mt + (1 - self.beta1) * self.grad
+            new_vt = self.beta2 * self.vt + (1 - self.beta2) * tf.square(self.grad)
+            corr = (tf.sqrt(1 - tf.pow(self.beta2, self.epoch))) / (1 - tf.pow(self.beta1, self.epoch))
+            # delta = self.lr * corr * (new_mt / (tf.sqrt(new_vt) + self.epsilon))
+            delta = self.lr * corr * ((new_mt / tf.sqrt(new_vt + self.epsilon)) + self.noise / tf.sqrt(self.epoch + 1))
+            # delta = self.lr * (self.grad + self.noise)
+
+            assign_var = tf.assign_sub(var, delta)
+            assign_mt = tf.assign(self.mt, new_mt)
+            assign_vt = tf.assign(self.vt, new_vt)
+            assign_epoch = tf.assign_add(self.epoch, 1)
+            return tf.group(assign_var, assign_mt, assign_vt, assign_epoch)
+
+        true_grads, losses, l2s, loss1, loss2, scores, nimgs = self.sess.run([self.grad_op, self.loss, self.l2dist, self.loss1, self.loss2, self.output, self.newimg], feed_dict={self.modifier: self.real_modifier})
+        # ADAM update
+        grad = true_grads[0].reshape(-1)
+        # print(true_grads[0])
+        epoch = self.adam_epoch[0]
+        mt = self.beta1 * self.mt + (1 - self.beta1) * grad
+        vt = self.beta2 * self.vt + (1 - self.beta2) * np.square(grad)
+        corr = (math.sqrt(1 - self.beta2 ** epoch)) / (1 - self.beta1 ** epoch)
+        # print(grad.shape, mt.shape, vt.shape, self.real_modifier.shape)
+        # m is a *view* of self.real_modifier
+        m = self.real_modifier.reshape(-1)
+        # this is in-place
+        m -= self.LEARNING_RATE * corr * (mt / (np.sqrt(vt) + 1e-8))
+        self.mt = mt
+        self.vt = vt
+        # m -= self.LEARNING_RATE * grad
+        if not self.use_tanh:
+            m_proj = np.maximum(np.minimum(m, self.modifier_up), self.modifier_down)
+            np.copyto(m, m_proj)
+        self.adam_epoch[0] = epoch + 1
+        return losses[0], l2s[0], loss1[0], loss2[0], scores[0], nimgs[0]
 
     # def attack(self, imgs, targets):
     def attack(self, imgs, captions, cap_masks):
