@@ -307,9 +307,11 @@ class ShowAndTellModel(object):
                                             initial_state=initial_state,
                                             dtype=tf.float32,
                                             scope=lstm_scope)
+        print("lstm_outputs shape:", lstm_outputs.get_shape())
 
     # Stack batches vertically.
     lstm_outputs = tf.reshape(lstm_outputs, [-1, lstm_cell.output_size])
+    print("lstm_outputs shape:", lstm_outputs.get_shape())
 
     with tf.variable_scope("logits") as logits_scope:
       logits = tf.contrib.layers.fully_connected(
@@ -318,10 +320,13 @@ class ShowAndTellModel(object):
           activation_fn=None,
           weights_initializer=self.initializer,
           scope=logits_scope)
+          # name="logits")
+      print("fully connected size:", logits.get_shape())
 
     if self.mode == "inference":
       tf.nn.softmax(logits, name="softmax")
     else:
+      tf.nn.softmax(logits, name="softmax")
       targets = tf.reshape(self.target_seqs, [-1])
       weights = tf.to_float(tf.reshape(self.input_mask, [-1]))
 

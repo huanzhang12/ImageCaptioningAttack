@@ -47,6 +47,7 @@ class AttackWrapper(inference_wrapper_base.InferenceWrapperBase):
   def feed_image(self, sess, encoded_image):
     initial_state = sess.run(fetches="lstm/initial_state:0",
                              feed_dict={"image_feed:0": encoded_image})
+                             #feed_dict={"image_raw_feed:0": encoded_image})
     return initial_state
 
   # input feed, mask_feed and image_feed are numpy arrays
@@ -75,7 +76,10 @@ class AttackWrapper(inference_wrapper_base.InferenceWrapperBase):
     restore_fn = self._create_restore_fn(FLAGS.checkpoint_path, saver)
     restore_fn(sess)
     sum_log_probs = sess.graph.get_tensor_by_name("batch_loss:0")
-    return sum_log_probs
+    # logits = sess.graph.get_tensor_by_name("logits/logits:0")
+    logits = sess.graph.get_tensor_by_name("softmax:0")
+    # return sum_log_probs, logits, softmax
+    return sum_log_probs, logits
 
   '''
   def new_caption_prob(self, sess, cap_sentence, encoded_image):

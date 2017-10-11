@@ -73,7 +73,7 @@ def main(_):
   model = attack_wrapper.AttackWrapper()
   vocab = vocabulary.Vocabulary(FLAGS.vocab_file)
   sess = tf.Session()
-  attack = CarliniL2(sess, model, targeted = True, batch_size=1, initial_const = 10.0, max_iterations=1000, print_every=1, confidence=0, use_log=False, abort_early=False, learning_rate=0.001)
+  attack = CarliniL2(sess, model, targeted = True, batch_size=1, initial_const = 1.0, max_iterations=1000, print_every=1, confidence=0, use_log=False, abort_early=False, learning_rate=0.001)
   
   filenames = []
   for file_pattern in FLAGS.input_files.split(","):
@@ -117,7 +117,12 @@ def main(_):
     new_mask = np.append(np.ones(true_cap_len),np.zeros(max_caption_length-true_cap_len))
     # print("Probability by attack_step:", model.attack_step(sess, new_caption, new_mask, raw_image))
     
-    adv = attack.attack(np.array([raw_image]), new_caption, [new_mask])
+    # adv = attack.attack(np.array([raw_image]), new_caption, [new_mask])
+    # key_words = [vocab.word_to_id("surfboard"),vocab.word_to_id("riding"),vocab.word_to_id("man"),vocab.word_to_id("wave"),vocab.word_to_id("dog"),vocab.word_to_id("water"),vocab.word_to_id("woman"),vocab.word_to_id("surfer"),vocab.word_to_id("ocean"),vocab.word_to_id("frisbee")]
+    key_words = [vocab.word_to_id("surfboard"), vocab.word_to_id("man"), vocab.word_to_id("wave"), vocab.word_to_id("riding"), vocab.word_to_id("water")]
+    key_words = key_words + [vocab.end_id]*(max_caption_length-len(key_words))
+    key_words_mask = np.append(np.ones(len(key_words)),np.zeros(max_caption_length-len(key_words)))
+    adv = attack.attack(np.array([raw_image]), sess, model, vocab, key_words, key_words_mask, iter_per_sentence=1)
     l2_distortion = np.sum((adv - raw_image)**2)**.5
     print("L2 distortion is", l2_distortion)
     show(raw_image, "original.png")
