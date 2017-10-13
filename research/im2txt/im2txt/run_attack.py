@@ -42,6 +42,8 @@ tf.flags.DEFINE_string("vocab_file", "", "Text file containing the vocabulary.")
 tf.flags.DEFINE_string("input_files", "",
                        "File pattern or comma-separated list of file patterns "
                        "of image files.")
+tf.flags.DEFINE_bool("use_keywords", False,
+                       "Use keywords based attack instead of exact attack")
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -79,7 +81,7 @@ def main(_):
     model = attack_wrapper.AttackWrapper()
     sess = tf.Session()
     # build the attacker graph
-    attack = CarliniL2(sess, attack_graph, inference_graph, model, targeted = True, batch_size=1, initial_const = 1.0, max_iterations=1000, print_every=1, confidence=0, use_log=False, abort_early=False, learning_rate=0.001)
+    attack = CarliniL2(sess, attack_graph, inference_graph, model, targeted = True, use_keywords = FLAGS.use_keywords, batch_size=1, initial_const = 1.0, max_iterations=1000, print_every=1, confidence=0, use_log=False, abort_early=False, learning_rate=0.001)
     # compute graph for preprocessing
     image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
     preprocessor = model.model.process_image(image_placeholder)
@@ -113,7 +115,6 @@ def main(_):
     true_cap_len = len(new_caption)
     new_caption = new_caption + [vocab.end_id]*(max_caption_length-true_cap_len)
 
-    new_caption = [new_caption]
     print("My new id:", new_caption)
     new_mask = np.append(np.ones(true_cap_len),np.zeros(max_caption_length-true_cap_len))
     # print("Probability by attack_step:", model.attack_step(sess, new_caption, new_mask, raw_image))
@@ -123,7 +124,14 @@ def main(_):
     key_words = [vocab.word_to_id("surfboard"), vocab.word_to_id("man"), vocab.word_to_id("wave"), vocab.word_to_id("riding"), vocab.word_to_id("water")]
     key_words = key_words + [vocab.end_id]*(max_caption_length-len(key_words))
     key_words_mask = np.append(np.ones(len(key_words)),np.zeros(max_caption_length-len(key_words)))
-    adv = attack.attack(np.array([raw_image]), sess, model, vocab, key_words, key_words_mask, iter_per_sentence=1)
+
+    if FLAGS.use_keywords:
+      # keywords based attack
+      adv = attack.attack(np.array([raw_image]), sess, model, vocab, key_words, key_words_mask, iter_per_sentence=1)
+    else:
+      # exact attack
+      adv = attack.attack(np.array([raw_image]), sess, model, vocab, new_caption, new_mask, iter_per_sentence=1)
+
     l2_distortion = np.sum((adv - raw_image)**2)**.5
     print("L2 distortion is", l2_distortion)
     show(raw_image, "original.png")

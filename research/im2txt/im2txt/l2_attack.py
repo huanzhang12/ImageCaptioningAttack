@@ -22,7 +22,7 @@ CONFIDENCE = 0           # how strong the adversarial example should be
 INITIAL_CONST = 1     # the initial constant c to pick as a first guess
 
 class CarliniL2:
-    def __init__(self, sess, attack_graph, inference_graph, model, batch_size=1, confidence = CONFIDENCE,
+    def __init__(self, sess, attack_graph, inference_graph, model, use_keywords = False, batch_size=1, confidence = CONFIDENCE,
                  targeted = TARGETED, learning_rate = LEARNING_RATE,
                  binary_search_steps = BINARY_SEARCH_STEPS, max_iterations = MAX_ITERATIONS, print_every = 100, early_stop_iters = 0,
                  abort_early = ABORT_EARLY, 
@@ -69,6 +69,7 @@ class CarliniL2:
         self.batch_size = batch_size
         max_caption_length = 20
         self.repeat = binary_search_steps >= 10
+        self.use_keywords = use_keywords
         # store the two graphs
         self.attack_graph = attack_graph
         self.inference_graph = inference_graph
@@ -91,7 +92,6 @@ class CarliniL2:
         self.input_mask = tf.Variable(np.zeros((batch_size, max_caption_length)), dtype=tf.int64, name="input_mask_var")
         self.key_words = tf.Variable(np.zeros(max_caption_length), dtype=tf.int64, name="key_words_var")
         self.key_words_mask = tf.Variable(np.zeros(max_caption_length), dtype=tf.int64, name="key_words_mask_var")
-        # TODO: add keywords input, same as self.timg
 
         # and here's what we use to assign them
         self.assign_timg = tf.placeholder(tf.float32, shape)
@@ -135,7 +135,6 @@ class CarliniL2:
         '''
 
         # loss1 = - self.output
-        # TODO: use a new loss
         # loss1 = self.output
         # loss1 = - tf.sum([tf.log(tf.reduce_maximum(self.logits,axis=1)[self.key_word]) for keyword in self.key_words[0]])
         # loss1 = tf.reduce_sum(tf.log(tf.reduce_max(tf.gather(self.logits, self.key_words, axis=2), axis=1)) * self.key_words_mask, axis=1)
@@ -156,7 +155,16 @@ class CarliniL2:
         # self.loss2 = tf.constant(0.0)
         self.loss1 = tf.reduce_sum(self.const*loss1)
         # self.loss = self.loss1+self.loss2
-        self.loss = self.loss1
+
+        if self.use_keywords:
+            # use the keywords loss
+            self.loss = self.loss1
+        else:
+            # use the output probability directly
+            if self.TARGETED:
+                self.loss = self.output
+            else:
+                self.loss = - self.output
         
         # Setup the adam optimizer and keep track of variables we're creating
         start_vars = set(x.name for x in tf.global_variables())
@@ -172,7 +180,6 @@ class CarliniL2:
 
         # these are the variables to initialize when we run
         self.setup = []
-        # TODO: add keywords input
         self.setup.append(self.key_words.assign(self.assign_key_words))
         self.setup.append(self.key_words_mask.assign(self.assign_key_words_mask))
         self.setup.append(self.timg.assign(self.assign_timg))
@@ -213,7 +220,6 @@ class CarliniL2:
             assign_epoch = tf.assign_add(self.epoch, 1)
             return tf.group(assign_var, assign_mt, assign_vt, assign_epoch)
 
-    # def attack(self, imgs, targets):
     def attack(self, imgs, sess, model, vocab, cap_key_words, cap_key_words_mask, iter_per_sentence=1):
         """
         Perform the L_2 attack on the given images for the given targets.
@@ -253,26 +259,31 @@ class CarliniL2:
             CONST = upper_bound
 
         # set the variables so that we don't have to send them over again
-        # TODO: set batchmask and batchseq to inference result
-       
-        infer_caption = [1, 0, 11, 46, 0, 195, 4, 33, 5, 0, 155, 3, 2]
-        true_infer_cap_len = len(infer_caption)
-        max_caption_length = 20
-        infer_caption = infer_caption + [vocab.end_id]*(max_caption_length-true_infer_cap_len)
-        infer_mask = np.append(np.ones(true_infer_cap_len),np.zeros(max_caption_length-true_infer_cap_len))
+        if self.use_keywords:
+            # TODO: use inference mode here
+            infer_caption = [1, 0, 11, 46, 0, 195, 4, 33, 5, 0, 155, 3, 2]
+            true_infer_cap_len = len(infer_caption)
+            max_caption_length = 20
+            infer_caption = infer_caption + [vocab.end_id]*(max_caption_length-true_infer_cap_len)
+            infer_mask = np.append(np.ones(true_infer_cap_len),np.zeros(max_caption_length-true_infer_cap_len))
+        else:
+            # if not using keywords, it is the exact sentence
+            infer_caption = key_words
+            infer_mask = key_words_mask
+
  		
  		
         self.sess.run(self.setup, {self.assign_timg: batch,
                                    self.assign_input_mask: [infer_mask],
                                    self.assign_input_feed: [infer_caption],
-                                   self.assign_key_words: key_words,
-                                   self.assign_key_words_mask: key_words_mask,
+                                   self.assign_key_words: np.squeeze(key_words),
+                                   self.assign_key_words_mask: np.squeeze(key_words_mask),
                                    self.assign_const: CONST})
         
         prev = 1e6
         train_timer = 0.0
         for iteration in range(self.MAX_ITERATIONS):
-            start = time.time()
+            attack_begin_time = time.time()
             # print out the losses every 10%
             # if iteration%(self.MAX_ITERATIONS//self.print_every) == 0:
             if True:
@@ -291,11 +302,12 @@ class CarliniL2:
                                                      self.logits, self.newimg])
 
             # update logits using the latest variable
-            keywords_probs, logits = self.sess.run([self.keywords_probs, self.logits])
-            print("keywords probs:", keywords_probs[:5])
+            if self.use_keywords:
+                keywords_probs, logits = self.sess.run([self.keywords_probs, self.logits])
+                print("keywords probs:", keywords_probs[:5])
 
-            # TODO: according to logits find the "top-1" prediction and generate batchseqs and batchmasks
-            if iteration % iter_per_sentence == 0:
+            # TODO: use beam search in inference mode here
+            if self.use_keywords and iteration % iter_per_sentence == 0:
                 infer_caption = np.argmax(np.array(logits), axis=1)
                 infer_caption = np.append([vocab.start_id], infer_caption).tolist()
 
@@ -311,7 +323,6 @@ class CarliniL2:
                 infer_mask = np.append(np.ones(true_infer_cap_len),np.zeros(max_caption_length-true_infer_cap_len))
                 # print("input id array for next iteration:", infer_caption)
                 # print("input mask for next iteration:", infer_mask)
-                # TODO: reset batchmask and batchseq
                 # print caption in each iteration
                 self.sess.run(self.reset_input, {self.assign_input_mask: [infer_mask],
                                            self.assign_input_feed: [infer_caption]})
@@ -324,8 +335,7 @@ class CarliniL2:
                     print("Early stopping because there is no improvement")
                     break
                 prev = l
-            end = time.time()
-            print("time of this iteration:", end - start)
+            train_timer += time.time() - attack_begin_time
 
         return np.array(nimg), CONST
 
