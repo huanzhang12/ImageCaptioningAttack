@@ -69,33 +69,34 @@ def main(_):
 
   # Create the vocabulary.
   '''
+
   tf.set_random_seed(1234)
-  model = attack_wrapper.AttackWrapper()
   vocab = vocabulary.Vocabulary(FLAGS.vocab_file)
-  sess = tf.Session()
-  attack = CarliniL2(sess, model, targeted = True, batch_size=1, initial_const = 1.0, max_iterations=1000, print_every=1, confidence=0, use_log=False, abort_early=False, learning_rate=0.001)
-  
+  attack_graph = tf.Graph()
+  # TODO: build the inference graph
+  inference_graph = tf.Graph()
+  with attack_graph.as_default():
+    model = attack_wrapper.AttackWrapper()
+    sess = tf.Session()
+    # build the attacker graph
+    attack = CarliniL2(sess, attack_graph, inference_graph, model, targeted = True, batch_size=1, initial_const = 1.0, max_iterations=1000, print_every=1, confidence=0, use_log=False, abort_early=False, learning_rate=0.001)
+    # compute graph for preprocessing
+    image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
+    preprocessor = model.model.process_image(image_placeholder)
+    
   filenames = []
   for file_pattern in FLAGS.input_files.split(","):
     filenames.extend(tf.gfile.Glob(file_pattern))
   tf.logging.info("Running caption generation on %d files matching %s",
                   len(filenames), FLAGS.input_files)
 
-  # Prepare the caption generator. Here we are implicitly using the default
-  # beam search parameters. See caption_generator.py for a description of the
-  # available beam search parameters.
-  
-  # preprocessing compute graph
-  image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
-  preprocessor = model.model.process_image(image_placeholder)
   for filename in filenames:
 
     with tf.gfile.GFile(filename, "rb") as f:
       image = f.read()
     
-    # preprocess image
-    # testing computation graph
     raw_image = sess.run(preprocessor, feed_dict = {image_placeholder: image})
+
     print('raw image size:', raw_image.shape)
 
     new_sentence = "kite"

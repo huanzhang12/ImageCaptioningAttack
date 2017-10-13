@@ -22,7 +22,7 @@ CONFIDENCE = 0           # how strong the adversarial example should be
 INITIAL_CONST = 1     # the initial constant c to pick as a first guess
 
 class CarliniL2:
-    def __init__(self, sess, model, batch_size=1, confidence = CONFIDENCE,
+    def __init__(self, sess, attack_graph, inference_graph, model, batch_size=1, confidence = CONFIDENCE,
                  targeted = TARGETED, learning_rate = LEARNING_RATE,
                  binary_search_steps = BINARY_SEARCH_STEPS, max_iterations = MAX_ITERATIONS, print_every = 100, early_stop_iters = 0,
                  abort_early = ABORT_EARLY, 
@@ -69,6 +69,11 @@ class CarliniL2:
         self.batch_size = batch_size
         max_caption_length = 20
         self.repeat = binary_search_steps >= 10
+        # store the two graphs
+        self.attack_graph = attack_graph
+        self.inference_graph = inference_graph
+        # make sure we are building the attack graph
+        assert sess.graph is attack_graph
 
         shape = (batch_size,image_size,image_size,num_channels)
         
