@@ -27,7 +27,7 @@ class CarliniL2:
                  binary_search_steps = BINARY_SEARCH_STEPS, max_iterations = MAX_ITERATIONS, print_every = 100, early_stop_iters = 0,
                  abort_early = ABORT_EARLY, 
                  initial_const = INITIAL_CONST,
-                 use_log = False, adam_beta1 = 0.9, adam_beta2 = 0.999):
+                 use_log = False, norm = "inf", adam_beta1 = 0.9, adam_beta2 = 0.999):
         """
         The L_2 optimized attack. 
 
@@ -109,8 +109,13 @@ class CarliniL2:
         self.output, self.logits = model.predict(self.sess, self.newimg, self.input_feed, self.input_mask)
         
         # distance to the input data
-        # self.l2dist = tf.reduce_sum(tf.square(self.newimg-tf.tanh(self.timg)/2),[1,2,3])
-        self.l2dist = tf.reduce_sum(tf.square(self.newimg-tf.tanh(self.timg)),[1,2,3])
+        # self.lpdist = tf.reduce_sum(tf.square(self.newimg-tf.tanh(self.timg)/2),[1,2,3])
+        if norm == "l2":
+            self.lpdist = tf.reduce_sum(tf.square(self.newimg-tf.tanh(self.timg)),[1,2,3])
+        elif norm == "inf":
+            self.lpdist = tf.reduce_max(tf.abs(self.newimg-tf.tanh(self.timg)),[1,2,3])
+        else:
+            raise ValueError("unsupported distance metric:" + norm)
 
         '''
         # compute the probability of the label class versus the maximum other
@@ -151,7 +156,7 @@ class CarliniL2:
         loss1 = tf.reduce_sum(tf.log(self.keywords_probs) * tf.cast(self.key_words_mask, tf.float32))
 
         # sum up the losses
-        self.loss2 = tf.reduce_sum(self.l2dist)
+        self.loss2 = tf.reduce_sum(self.lpdist)
         # self.loss2 = tf.constant(0.0)
         self.loss1 = tf.reduce_sum(self.const*loss1)
         # self.loss = self.loss1+self.loss2
@@ -203,7 +208,8 @@ class CarliniL2:
     def adam_optimizer_tf(self, loss, var):
         with tf.name_scope("adam_optimier"):
             self.grad = tf.gradients(loss, var)[0]
-            self.noise = tf.random_normal(self.grad.shape, 0.0, 1.0)
+            # self.noise = tf.random_normal(self.grad.shape, 0.0, 1.0)
+            self.noise = 0
             self.beta1 = tf.constant(0.9)
             self.beta2 = tf.constant(0.999)
             self.lr = tf.constant(self.LEARNING_RATE)
@@ -257,8 +263,6 @@ class CarliniL2:
         # batchseqs = input_seqs[:batch_size]
         # batchmasks = input_masks[:batch_size]
 
-        bestl2 = [1e10]*batch_size
-
         # The last iteration (if we run many steps) repeat the search once.
         if self.repeat == True and outer_step == self.BINARY_SEARCH_STEPS-1:
             CONST = upper_bound
@@ -290,6 +294,8 @@ class CarliniL2:
         
         prev = 1e6
         train_timer = 0.0
+        best_lp = 1e10
+        best_img = None
         for iteration in range(self.MAX_ITERATIONS):
             attack_begin_time = time.time()
             # print out the losses every 10%
@@ -299,14 +305,14 @@ class CarliniL2:
                 # grad = self.sess.run(self.grad_op)
                 # old_modifier = self.sess.run(self.modifier)
                 # np.save('white_iter_{}'.format(iteration), modifier)
-                loss, loss1, loss2 = self.sess.run((self.loss,self.loss1,self.loss2))
-                print("[STATS][L2] iter = {}, time = {:.8f}, loss = {:.5g}, loss1 = {:.5g}, loss2 = {:.5g}".format(iteration, train_timer, loss, loss1, loss2))
+                loss, grad, loss1, loss2 = self.sess.run((self.loss,self.grad,self.loss1,self.loss2))
+                print("[STATS][L2] iter = {}, time = {:.8f}, grad_norm = {:.5g}, loss = {:.5g}, loss1 = {:.5g}, loss2 = {:.5g}".format(iteration, train_timer, np.linalg.norm(grad), loss, loss1, loss2))
                 sys.stdout.flush()
 
             attack_begin_time = time.time()
             # perform the attack 
-            _, l, l2s, scores, logits, nimg = self.sess.run([self.train, self.loss, 
-                                                     self.l2dist, self.output, 
+            _, l, lps, scores, logits, nimg = self.sess.run([self.train, self.loss, 
+                                                     self.lpdist, self.output, 
                                                      self.logits, self.newimg])
 
             # update logits using the latest variable
@@ -328,7 +334,10 @@ class CarliniL2:
                 print("inference sentence:",sentence)
                 true_key_words = key_words[:int(np.sum(key_words_mask))]
                 if self.TARGETED and set(true_key_words).issubset(infer_caption):
-                    break
+                    if lps[0] < best_lp:
+                        best_lp = lps[0]
+                        best_img = np.array(nimg)
+                    print("a valid attack is found, lp =", lps[0], ", best =", best_lp)
                 # print("max likelihood id array found:", infer_caption)
                 if 2 in infer_caption:
                 	true_infer_cap_len = infer_caption.index(2)+1
@@ -352,5 +361,8 @@ class CarliniL2:
                 prev = l
             train_timer += time.time() - attack_begin_time
 
-        return np.array(nimg), CONST
+        if best_img is None:
+            return np.array(nimg), CONST
+        else:
+            return best_img, CONST
 

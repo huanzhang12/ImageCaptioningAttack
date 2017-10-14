@@ -45,7 +45,9 @@ tf.flags.DEFINE_string("input_files", "",
 tf.flags.DEFINE_bool("use_keywords", False,
                        "Use keywords based attack instead of exact attack")
 tf.flags.DEFINE_bool("targeted", False,
-                       "Use keywords based attack instead of exact attack")
+                       "Use targeted attack")
+tf.flags.DEFINE_string("norm", "inf",
+                        "norm to use: inf or l2")
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -75,6 +77,8 @@ def main(_):
   '''
 
   tf.set_random_seed(1234)
+  gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.4)
+  config=tf.ConfigProto(gpu_options=gpu_options)
   vocab = vocabulary.Vocabulary(FLAGS.vocab_file)
   
   # TODO: build the inference graph
@@ -85,7 +89,7 @@ def main(_):
     # inf_image_placeholder = tf.placeholder(dtype=tf.string, shape=[], name="inf_image_placeholder")
     # inf_preprocessor = inf_model.model.process_image(inf_image_placeholder)
   inference_graph.finalize()
-  inf_sess = tf.Session(graph=inference_graph)
+  inf_sess = tf.Session(graph=inference_graph, config=config)
   # Load the model from checkpoint.
   inf_restore_fn(inf_sess)
 
@@ -93,9 +97,9 @@ def main(_):
   attack_graph = tf.Graph()
   with attack_graph.as_default():
     model = attack_wrapper.AttackWrapper()
-    sess = tf.Session()
+    sess = tf.Session(config=config)
     # build the attacker graph
-    attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, batch_size=1, initial_const = 10.0, max_iterations=1000, print_every=1, confidence=0, use_log=False, abort_early=False, learning_rate=0.005)
+    attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, batch_size=1, initial_const = 1.0, max_iterations=1000, print_every=1, confidence=0, use_log=False, norm=FLAGS.norm, abort_early=False, learning_rate=0.005)
     # compute graph for preprocessing
     image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
     preprocessor = model.model.process_image(image_placeholder)
@@ -137,7 +141,10 @@ def main(_):
     # key_words = [vocab.word_to_id("surfboard"),vocab.word_to_id("riding"),vocab.word_to_id("man"),vocab.word_to_id("wave"),vocab.word_to_id("dog"),vocab.word_to_id("water"),vocab.word_to_id("woman"),vocab.word_to_id("surfer"),vocab.word_to_id("ocean"),vocab.word_to_id("frisbee")]
     # key_words = [vocab.word_to_id("surfboard"), vocab.word_to_id("man"), vocab.word_to_id("wave"), vocab.word_to_id("riding"), vocab.word_to_id("water")]
     # key_words = [vocab.word_to_id("giraffe"), vocab.word_to_id("standing"), vocab.word_to_id("photo")]
-    key_words = [vocab.word_to_id("photo"), vocab.word_to_id("train"), vocab.word_to_id("track")]
+    # key_words = [vocab.word_to_id("photo"), vocab.word_to_id("train"), vocab.word_to_id("track")]
+    words = ["train", "photo", "track"]
+    key_words = [vocab.word_to_id(word) for word in words]
+    print(key_words)
     # key_words = [vocab.word_to_id("bird"), vocab.word_to_id("flying")]
     key_words_mask = np.append(np.ones(len(key_words)),np.zeros(max_caption_length-len(key_words)))
     key_words = key_words + [vocab.end_id]*(max_caption_length-len(key_words))
@@ -150,7 +157,9 @@ def main(_):
       adv = attack.attack(np.array([raw_image]), sess, inf_sess,model, inf_model, vocab, new_caption, new_mask, 1)
 
     l2_distortion = np.sum((adv - raw_image)**2)**.5
+    linf_distortion = np.max(np.abs(adv - raw_image))
     print("L2 distortion is", l2_distortion)
+    print("L_inf distortion is", linf_distortion)
     show(raw_image, "original.png")
     show(adv, "adversarial.png")
     show(adv - raw_image, "diff.png")
