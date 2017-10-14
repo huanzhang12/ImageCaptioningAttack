@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-r"""Generate captions for images using default beam search parameters."""
+"""Generate captions for images using default beam search parameters."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -44,6 +44,8 @@ tf.flags.DEFINE_string("input_files", "",
                        "of image files.")
 tf.flags.DEFINE_bool("use_keywords", False,
                        "Use keywords based attack instead of exact attack")
+tf.flags.DEFINE_bool("targeted", False,
+                       "Use keywords based attack instead of exact attack")
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -74,14 +76,26 @@ def main(_):
 
   tf.set_random_seed(1234)
   vocab = vocabulary.Vocabulary(FLAGS.vocab_file)
-  attack_graph = tf.Graph()
+  
   # TODO: build the inference graph
   inference_graph = tf.Graph()
+  with inference_graph.as_default():
+    inf_model = inference_wrapper.InferenceWrapper()
+    inf_restore_fn = inf_model.build_graph_from_config(configuration.ModelConfig(),FLAGS.checkpoint_path)               
+    # inf_image_placeholder = tf.placeholder(dtype=tf.string, shape=[], name="inf_image_placeholder")
+    # inf_preprocessor = inf_model.model.process_image(inf_image_placeholder)
+  inference_graph.finalize()
+  inf_sess = tf.Session(graph=inference_graph)
+  # Load the model from checkpoint.
+  inf_restore_fn(inf_sess)
+
+
+  attack_graph = tf.Graph()
   with attack_graph.as_default():
     model = attack_wrapper.AttackWrapper()
     sess = tf.Session()
     # build the attacker graph
-    attack = CarliniL2(sess, attack_graph, inference_graph, model, targeted = True, use_keywords = FLAGS.use_keywords, batch_size=1, initial_const = 1.0, max_iterations=1000, print_every=1, confidence=0, use_log=False, abort_early=False, learning_rate=0.001)
+    attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, batch_size=1, initial_const = 10.0, max_iterations=1000, print_every=1, confidence=0, use_log=False, abort_early=False, learning_rate=0.005)
     # compute graph for preprocessing
     image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
     preprocessor = model.model.process_image(image_placeholder)
@@ -121,23 +135,26 @@ def main(_):
     
     # adv = attack.attack(np.array([raw_image]), new_caption, [new_mask])
     # key_words = [vocab.word_to_id("surfboard"),vocab.word_to_id("riding"),vocab.word_to_id("man"),vocab.word_to_id("wave"),vocab.word_to_id("dog"),vocab.word_to_id("water"),vocab.word_to_id("woman"),vocab.word_to_id("surfer"),vocab.word_to_id("ocean"),vocab.word_to_id("frisbee")]
-    key_words = [vocab.word_to_id("surfboard"), vocab.word_to_id("man"), vocab.word_to_id("wave"), vocab.word_to_id("riding"), vocab.word_to_id("water")]
-    key_words = key_words + [vocab.end_id]*(max_caption_length-len(key_words))
+    # key_words = [vocab.word_to_id("surfboard"), vocab.word_to_id("man"), vocab.word_to_id("wave"), vocab.word_to_id("riding"), vocab.word_to_id("water")]
+    # key_words = [vocab.word_to_id("giraffe"), vocab.word_to_id("standing"), vocab.word_to_id("photo")]
+    key_words = [vocab.word_to_id("photo"), vocab.word_to_id("train"), vocab.word_to_id("track")]
+    # key_words = [vocab.word_to_id("bird"), vocab.word_to_id("flying")]
     key_words_mask = np.append(np.ones(len(key_words)),np.zeros(max_caption_length-len(key_words)))
+    key_words = key_words + [vocab.end_id]*(max_caption_length-len(key_words))
 
     if FLAGS.use_keywords:
       # keywords based attack
-      adv = attack.attack(np.array([raw_image]), sess, model, vocab, key_words, key_words_mask, iter_per_sentence=1)
+      adv = attack.attack(np.array([raw_image]), sess, inf_sess, model, inf_model, vocab, key_words, key_words_mask, 1)
     else:
       # exact attack
-      adv = attack.attack(np.array([raw_image]), sess, model, vocab, new_caption, new_mask, iter_per_sentence=1)
+      adv = attack.attack(np.array([raw_image]), sess, inf_sess,model, inf_model, vocab, new_caption, new_mask, 1)
 
     l2_distortion = np.sum((adv - raw_image)**2)**.5
     print("L2 distortion is", l2_distortion)
     show(raw_image, "original.png")
     show(adv, "adversarial.png")
     show(adv - raw_image, "diff.png")
-    
+    inf_sess.close()
       
 if __name__ == "__main__":
   tf.app.run()

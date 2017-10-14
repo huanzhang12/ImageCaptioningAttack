@@ -81,7 +81,7 @@ VAL_CAPTIONS_FILE="${SCRATCH_DIR}/annotations/captions_val2014.json"
 # Build TFRecords of the image data.
 cd "${CURRENT_DIR}"
 BUILD_SCRIPT="${WORK_DIR}/build_mscoco_data"
-"${BUILD_SCRIPT}" \
+"python3" "${BUILD_SCRIPT}" \
   --train_image_dir="${TRAIN_IMAGE_DIR}" \
   --val_image_dir="${VAL_IMAGE_DIR}" \
   --train_captions_file="${TRAIN_CAPTIONS_FILE}" \

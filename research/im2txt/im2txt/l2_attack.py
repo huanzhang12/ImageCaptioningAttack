@@ -22,7 +22,7 @@ CONFIDENCE = 0           # how strong the adversarial example should be
 INITIAL_CONST = 1     # the initial constant c to pick as a first guess
 
 class CarliniL2:
-    def __init__(self, sess, attack_graph, inference_graph, model, use_keywords = False, batch_size=1, confidence = CONFIDENCE,
+    def __init__(self, sess, inf_sess, attack_graph, inference_graph, model, inf_model, use_keywords = False, batch_size=1, confidence = CONFIDENCE,
                  targeted = TARGETED, learning_rate = LEARNING_RATE,
                  binary_search_steps = BINARY_SEARCH_STEPS, max_iterations = MAX_ITERATIONS, print_every = 100, early_stop_iters = 0,
                  abort_early = ABORT_EARLY, 
@@ -158,13 +158,18 @@ class CarliniL2:
 
         if self.use_keywords:
             # use the keywords loss
-            self.loss = self.loss1
+            if self.TARGETED:
+                self.loss = - self.loss1
+            else:
+                self.loss = self.loss1
         else:
             # use the output probability directly
             if self.TARGETED:
                 self.loss = self.output
             else:
                 self.loss = - self.output
+
+        self.loss += self.loss2
         
         # Setup the adam optimizer and keep track of variables we're creating
         start_vars = set(x.name for x in tf.global_variables())
@@ -220,7 +225,7 @@ class CarliniL2:
             assign_epoch = tf.assign_add(self.epoch, 1)
             return tf.group(assign_var, assign_mt, assign_vt, assign_epoch)
 
-    def attack(self, imgs, sess, model, vocab, cap_key_words, cap_key_words_mask, iter_per_sentence=1):
+    def attack(self, imgs, sess, inf_sess, model, inf_model, vocab, cap_key_words, cap_key_words_mask, iter_per_sentence=1):
         """
         Perform the L_2 attack on the given images for the given targets.
 
@@ -231,10 +236,10 @@ class CarliniL2:
         print('go up to',len(imgs))
         for i in range(0,len(imgs),self.batch_size):
             print('tick',i)
-            r.extend(self.attack_batch(imgs[i:i+self.batch_size], sess, model, vocab, cap_key_words, cap_key_words_mask, iter_per_sentence)[0])
+            r.extend(self.attack_batch(imgs[i:i+self.batch_size], sess, inf_sess, model, inf_model, vocab, cap_key_words, cap_key_words_mask, iter_per_sentence)[0])
         return np.array(r)
 
-    def attack_batch(self, imgs, sess, model, vocab, key_words, key_words_mask, iter_per_sentence):
+    def attack_batch(self, imgs, sess, inf_sess, model, inf_model, vocab, key_words, key_words_mask, iter_per_sentence):
    
         batch_size = self.batch_size
 
@@ -261,7 +266,10 @@ class CarliniL2:
         # set the variables so that we don't have to send them over again
         if self.use_keywords:
             # TODO: use inference mode here
-            infer_caption = [1, 0, 11, 46, 0, 195, 4, 33, 5, 0, 155, 3, 2]
+            generator = caption_generator.CaptionGenerator(inf_model, vocab)
+            captions = generator.beam_search(inf_sess, imgs[0])
+            infer_caption = captions[0].sentence
+            # infer_caption = [1, 0, 11, 46, 0, 195, 4, 33, 5, 0, 155, 3, 2]
             true_infer_cap_len = len(infer_caption)
             max_caption_length = 20
             infer_caption = infer_caption + [vocab.end_id]*(max_caption_length-true_infer_cap_len)
@@ -304,16 +312,23 @@ class CarliniL2:
             # update logits using the latest variable
             if self.use_keywords:
                 keywords_probs, logits = self.sess.run([self.keywords_probs, self.logits])
-                print("keywords probs:", keywords_probs[:5])
+                print("keywords probs:", keywords_probs[:int(np.sum(key_words_mask))])
 
             # TODO: use beam search in inference mode here
-            if self.use_keywords and iteration % iter_per_sentence == 0:
-                infer_caption = np.argmax(np.array(logits), axis=1)
-                infer_caption = np.append([vocab.start_id], infer_caption).tolist()
 
+            if self.use_keywords and iteration % iter_per_sentence == 0:
+                # infer_caption = np.argmax(np.array(logits), axis=1)
+                # infer_caption = np.append([vocab.start_id], infer_caption).tolist()
+                generator = caption_generator.CaptionGenerator(inf_model, vocab)
+                # print(nimg[0].shape)
+                captions = generator.beam_search(inf_sess, nimg[0])
+                infer_caption = captions[0].sentence
                 sentence = [vocab.id_to_word(w) for w in infer_caption]
 
-                print("max likelihood sentence found:",sentence)
+                print("inference sentence:",sentence)
+                true_key_words = key_words[:int(np.sum(key_words_mask))]
+                if self.TARGETED and set(true_key_words).issubset(infer_caption):
+                    break
                 # print("max likelihood id array found:", infer_caption)
                 if 2 in infer_caption:
                 	true_infer_cap_len = infer_caption.index(2)+1
