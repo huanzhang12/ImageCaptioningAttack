@@ -76,10 +76,10 @@ class AttackWrapper(inference_wrapper_base.InferenceWrapperBase):
     restore_fn = self._create_restore_fn(FLAGS.checkpoint_path, saver)
     restore_fn(sess)
     sum_log_probs = sess.graph.get_tensor_by_name("batch_loss:0")
-    # logits = sess.graph.get_tensor_by_name("logits/logits:0")
-    logits = sess.graph.get_tensor_by_name("softmax:0")
+    logits = self.model.logits
+    softmax = sess.graph.get_tensor_by_name("softmax:0")
     # return sum_log_probs, logits, softmax
-    return sum_log_probs, logits
+    return sum_log_probs, softmax, logits
 
   '''
   def new_caption_prob(self, sess, cap_sentence, encoded_image):

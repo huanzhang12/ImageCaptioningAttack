@@ -314,25 +314,25 @@ class ShowAndTellModel(object):
     print("lstm_outputs shape:", lstm_outputs.get_shape())
 
     with tf.variable_scope("logits") as logits_scope:
-      logits = tf.contrib.layers.fully_connected(
+      self.logits = tf.contrib.layers.fully_connected(
           inputs=lstm_outputs,
           num_outputs=self.config.vocab_size,
           activation_fn=None,
           weights_initializer=self.initializer,
           scope=logits_scope)
           # name="logits")
-      print("fully connected size:", logits.get_shape())
+      print("fully connected size:", self.logits.get_shape())
 
     if self.mode == "inference":
-      tf.nn.softmax(logits, name="softmax")
+      tf.nn.softmax(self.logits, name="softmax")
     else:
-      tf.nn.softmax(logits, name="softmax")
+      tf.nn.softmax(self.logits, name="softmax")
       targets = tf.reshape(self.target_seqs, [-1])
       weights = tf.to_float(tf.reshape(self.input_mask, [-1]))
 
       # Compute losses.
       losses = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=targets,
-                                                              logits=logits,
+                                                              logits=self.logits,
                                                               name="softmax_and_cross_entropy")
       """
       batch_loss = tf.div(tf.reduce_sum(tf.multiply(losses, weights)),

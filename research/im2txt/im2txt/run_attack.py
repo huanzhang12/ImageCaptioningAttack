@@ -142,7 +142,8 @@ def main(_):
     # key_words = [vocab.word_to_id("surfboard"), vocab.word_to_id("man"), vocab.word_to_id("wave"), vocab.word_to_id("riding"), vocab.word_to_id("water")]
     # key_words = [vocab.word_to_id("giraffe"), vocab.word_to_id("standing"), vocab.word_to_id("photo")]
     # key_words = [vocab.word_to_id("photo"), vocab.word_to_id("train"), vocab.word_to_id("track")]
-    words = ["train", "photo", "track"]
+    # words = ["train", "photo", "track"]
+    words = ["pasta", "sauce"]
     key_words = [vocab.word_to_id(word) for word in words]
     print(key_words)
     # key_words = [vocab.word_to_id("bird"), vocab.word_to_id("flying")]

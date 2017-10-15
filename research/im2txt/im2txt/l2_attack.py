@@ -67,7 +67,6 @@ class CarliniL2:
         self.CONFIDENCE = confidence
         self.initial_const = initial_const
         self.batch_size = batch_size
-        max_caption_length = 20
         self.repeat = binary_search_steps >= 10
         self.use_keywords = use_keywords
         # store the two graphs
@@ -106,7 +105,7 @@ class CarliniL2:
         self.newimg = tf.tanh(self.modifier + self.timg)
         
         # prediction BEFORE-SOFTMAX of the model
-        self.output, self.logits = model.predict(self.sess, self.newimg, self.input_feed, self.input_mask)
+        self.output, self.softmax, self.logits = model.predict(self.sess, self.newimg, self.input_feed, self.input_mask)
         
         # distance to the input data
         # self.lpdist = tf.reduce_sum(tf.square(self.newimg-tf.tanh(self.timg)/2),[1,2,3])
@@ -141,20 +140,33 @@ class CarliniL2:
 
         # loss1 = - self.output
         # loss1 = self.output
-        # loss1 = - tf.sum([tf.log(tf.reduce_maximum(self.logits,axis=1)[self.key_word]) for keyword in self.key_words[0]])
-        # loss1 = tf.reduce_sum(tf.log(tf.reduce_max(tf.gather(self.logits, self.key_words, axis=2), axis=1)) * self.key_words_mask, axis=1)
-        # loss1 = tf.reduce_sum(tf.log(tf.reduce_max(tf.gather(self.logits, self.key_words, axis=1), axis=1)) * tf.cast(self.key_words_mask, tf.float32))
-        # t=tf.log(tf.reduce_max(tf.gather(self.logits, self.key_words, axis=1), axis=1)) * tf.cast(self.key_words_mask, tf.float32)
+        # loss1 = - tf.sum([tf.log(tf.reduce_maximum(self.softmax,axis=1)[self.key_word]) for keyword in self.key_words[0]])
+        # loss1 = tf.reduce_sum(tf.log(tf.reduce_max(tf.gather(self.softmax, self.key_words, axis=2), axis=1)) * self.key_words_mask, axis=1)
+        # loss1 = tf.reduce_sum(tf.log(tf.reduce_max(tf.gather(self.softmax, self.key_words, axis=1), axis=1)) * tf.cast(self.key_words_mask, tf.float32))
+        # t=tf.log(tf.reduce_max(tf.gather(self.softmax, self.key_words, axis=1), axis=1)) * tf.cast(self.key_words_mask, tf.float32)
         # print(t.get_shape())
-        # loss1 = tf.reduce_sum(tf.log(tf.reduce_max(tf.gather(tf.transpose(self.logits, perm=[1,0]), self.key_words), axis=1)+ 1e-30) * tf.cast(self.key_words_mask, tf.float32))
-        # print(self.logits.get_shape())
-        # print("logits:", self.logits.get_shape())
-        # print("tf.gather(self.logits, self.key_words, axis=1):", tf.gather(self.logits, self.key_words, axis=1))
+        # loss1 = tf.reduce_sum(tf.log(tf.reduce_max(tf.gather(tf.transpose(self.softmax, perm=[1,0]), self.key_words), axis=1)+ 1e-30) * tf.cast(self.key_words_mask, tf.float32))
+        # print(self.softmax.get_shape())
+        # print("softmax:", self.softmax.get_shape())
+        # print("tf.gather(self.softmax, self.key_words, axis=1):", tf.gather(self.softmax, self.key_words, axis=1))
         # print("key_words_mask:", tf.cast(self.key_words_mask, tf.float32).get_shape())
-        # print(tf.reduce_max(tf.gather(self.logits, self.key_words, axis=1), axis=0).get_shape())
-        self.keywords_probs = tf.reduce_max(tf.gather(self.logits, self.key_words, axis=1), axis=0)
-        loss1 = tf.reduce_sum(tf.log(self.keywords_probs) * tf.cast(self.key_words_mask, tf.float32))
+        # print(tf.reduce_max(tf.gather(self.softmax, self.key_words, axis=1), axis=0).get_shape())
 
+
+        # self.keywords_probs = tf.reduce_max(tf.gather(self.softmax, self.key_words, axis=1), axis=0)
+        # loss1 = tf.reduce_sum(tf.log(self.keywords_probs) * tf.cast(self.key_words_mask, tf.float32))
+        self.logits = self.logits[:tf.cast(tf.reduce_sum(self.input_mask), tf.int32) - 1]
+        print(self.logits.shape)
+        self.keywords_probs = tf.gather(self.logits, self.key_words[:tf.cast(tf.reduce_sum(self.key_words_mask), tf.int32)], axis=1)
+        print(self.keywords_probs.shape) # 19 * 20
+        self.max_probs = tf.reduce_max(self.logits, axis=1)
+        print(self.max_probs.shape) # 19
+        self.diff_probs = tf.maximum(tf.tile(tf.expand_dims(self.max_probs,1),[1,tf.cast(tf.reduce_sum(self.key_words_mask), tf.int32)]) - self.keywords_probs, 0)
+        print(self.diff_probs.shape)
+        self.min_diff_probs = tf.reduce_min(self.diff_probs, axis = 0)
+        loss1 = tf.reduce_sum(self.min_diff_probs)
+        print(loss1.shape)
+        
         # sum up the losses
         self.loss2 = tf.reduce_sum(self.lpdist)
         # self.loss2 = tf.constant(0.0)
@@ -164,9 +176,9 @@ class CarliniL2:
         if self.use_keywords:
             # use the keywords loss
             if self.TARGETED:
-                self.loss = - self.loss1
-            else:
                 self.loss = self.loss1
+            else:
+                self.loss = - self.loss1
         else:
             # use the output probability directly
             if self.TARGETED:
@@ -284,7 +296,6 @@ class CarliniL2:
             infer_mask = key_words_mask
 
  		
- 		
         self.sess.run(self.setup, {self.assign_timg: batch,
                                    self.assign_input_mask: [infer_mask],
                                    self.assign_input_feed: [infer_caption],
@@ -311,19 +322,31 @@ class CarliniL2:
 
             attack_begin_time = time.time()
             # perform the attack 
-            _, l, lps, scores, logits, nimg = self.sess.run([self.train, self.loss, 
+            _, l, lps, scores, softmax, nimg = self.sess.run([self.train, self.loss, 
                                                      self.lpdist, self.output, 
-                                                     self.logits, self.newimg])
+                                                     self.softmax, self.newimg])
+            
+            '''
+            # add noise if gradient is zero
+            if np.linalg.norm(grad) == 0:
+                add_noise = self.modifier.assign(tf.random_normal(shape=tf.shape(self.modifier), mean=0.0, stddev=0.1, dtype=tf.float32))
+                sess.run(add_noise)
+                print("noise added")
+            '''
 
-            # update logits using the latest variable
+            # update softmax using the latest variable
             if self.use_keywords:
-                keywords_probs, logits = self.sess.run([self.keywords_probs, self.logits])
-                print("keywords probs:", keywords_probs[:int(np.sum(key_words_mask))])
+                keywords_probs, max_probs, diff_probs, min_diff_probs, softmax, logits = self.sess.run([self.keywords_probs, self.max_probs, self.diff_probs, self.min_diff_probs, self.softmax, self.logits])
+                # print("keywords probs:", keywords_probs[:int(np.sum(key_words_mask))])
+                print("keywords probs:\n", keywords_probs)
+                print("max probs:\n", max_probs)
+                print("diff probs:\n", diff_probs)
+                print("min diff probs:\n", min_diff_probs)
 
             # TODO: use beam search in inference mode here
 
             if self.use_keywords and iteration % iter_per_sentence == 0:
-                # infer_caption = np.argmax(np.array(logits), axis=1)
+                # infer_caption = np.argmax(np.array(softmax), axis=1)
                 # infer_caption = np.append([vocab.start_id], infer_caption).tolist()
                 generator = caption_generator.CaptionGenerator(inf_model, vocab)
                 # print(nimg[0].shape)
@@ -338,6 +361,7 @@ class CarliniL2:
                         best_lp = lps[0]
                         best_img = np.array(nimg)
                     print("a valid attack is found, lp =", lps[0], ", best =", best_lp)
+                    break
                 # print("max likelihood id array found:", infer_caption)
                 if 2 in infer_caption:
                 	true_infer_cap_len = infer_caption.index(2)+1
