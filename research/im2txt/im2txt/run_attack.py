@@ -99,7 +99,7 @@ def main(_):
     model = attack_wrapper.AttackWrapper()
     sess = tf.Session(config=config)
     # build the attacker graph
-    attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, batch_size=1, initial_const = 1.0, max_iterations=1000, print_every=1, confidence=0, use_log=False, norm=FLAGS.norm, abort_early=False, learning_rate=0.005)
+    attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, batch_size=1, initial_const = 1.0, max_iterations=1000, print_every=1, confidence=1, use_log=False, norm=FLAGS.norm, abort_early=False, learning_rate=0.005)
     # compute graph for preprocessing
     image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
     preprocessor = model.model.process_image(image_placeholder)
@@ -143,7 +143,7 @@ def main(_):
     # key_words = [vocab.word_to_id("giraffe"), vocab.word_to_id("standing"), vocab.word_to_id("photo")]
     # key_words = [vocab.word_to_id("photo"), vocab.word_to_id("train"), vocab.word_to_id("track")]
     # words = ["train", "photo", "track"]
-    words = ["pasta", "sauce"]
+    words = ["riding", "train", "long"]
     key_words = [vocab.word_to_id(word) for word in words]
     print(key_words)
     # key_words = [vocab.word_to_id("bird"), vocab.word_to_id("flying")]

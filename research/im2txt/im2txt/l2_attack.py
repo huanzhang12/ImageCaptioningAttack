@@ -155,14 +155,34 @@ class CarliniL2:
 
         # self.keywords_probs = tf.reduce_max(tf.gather(self.softmax, self.key_words, axis=1), axis=0)
         # loss1 = tf.reduce_sum(tf.log(self.keywords_probs) * tf.cast(self.key_words_mask, tf.float32))
-        self.logits = self.logits[:tf.cast(tf.reduce_sum(self.input_mask), tf.int32) - 1]
+
+        # these are the true lenghth of logits and keywords without masked words
+        true_logits_len = tf.cast(tf.reduce_sum(self.input_mask), tf.int32) - 1 
+        true_keywords_len = tf.cast(tf.reduce_sum(self.key_words_mask), tf.int32)
+
+        self.logits = self.logits[:true_logits_len]
         print(self.logits.shape)
-        self.keywords_probs = tf.gather(self.logits, self.key_words[:tf.cast(tf.reduce_sum(self.key_words_mask), tf.int32)], axis=1)
+
+        self.keywords_probs = tf.gather(self.logits, self.key_words[:true_keywords_len], axis=1)
+        # evalute each word position, and find the maximum probability keyword at each position
+        self.max_keywords_args = tf.argmax(self.keywords_probs, axis = 1)
         print(self.keywords_probs.shape) # 19 * 20
-        self.max_probs = tf.reduce_max(self.logits, axis=1)
+        
+        # get the key word IDs for each position
+        self.key_words_to_dec = tf.cast(tf.gather(self.key_words, self.max_keywords_args), tf.int32)
+        # generate 2-D indices
+        self.indices_to_dec = tf.concat([tf.expand_dims(tf.range(true_logits_len), axis=1), tf.expand_dims(self.key_words_to_dec, axis=1)], axis=1)
+        # generate a mask for the maximum key word probability at each word position
+        self.logits_mask = tf.scatter_nd(self.indices_to_dec, tf.ones(tf.expand_dims(true_logits_len, axis=0)), shape=(true_logits_len, int(self.logits.shape[1])))
+        # modify the logits, add a large negative number to the corresponding max keyword
+        self.modified_logits = self.logits - 10000 * self.logits_mask
+
+        self.max_probs = tf.reduce_max(self.modified_logits, axis=1)
         print(self.max_probs.shape) # 19
-        self.diff_probs = tf.maximum(tf.tile(tf.expand_dims(self.max_probs,1),[1,tf.cast(tf.reduce_sum(self.key_words_mask), tf.int32)]) - self.keywords_probs, 0)
+
+        self.diff_probs = tf.maximum(tf.tile(tf.expand_dims(self.max_probs,1),[1,true_keywords_len]) - self.keywords_probs, - self.CONFIDENCE)
         print(self.diff_probs.shape)
+
         self.min_diff_probs = tf.reduce_min(self.diff_probs, axis = 0)
         loss1 = tf.reduce_sum(self.min_diff_probs)
         print(loss1.shape)
@@ -336,7 +356,7 @@ class CarliniL2:
 
             # update softmax using the latest variable
             if self.use_keywords:
-                keywords_probs, max_probs, diff_probs, min_diff_probs, softmax, logits = self.sess.run([self.keywords_probs, self.max_probs, self.diff_probs, self.min_diff_probs, self.softmax, self.logits])
+                keywords_probs, max_probs, diff_probs, min_diff_probs, softmax, logits, modified_logits = self.sess.run([self.keywords_probs, self.max_probs, self.diff_probs, self.min_diff_probs, self.softmax, self.logits, self.modified_logits])
                 # print("keywords probs:", keywords_probs[:int(np.sum(key_words_mask))])
                 print("keywords probs:\n", keywords_probs)
                 print("max probs:\n", max_probs)
