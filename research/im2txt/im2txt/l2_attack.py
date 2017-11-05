@@ -22,11 +22,11 @@ CONFIDENCE = 0           # how strong the adversarial example should be
 INITIAL_CONST = 1     # the initial constant c to pick as a first guess
 
 class CarliniL2:
-    def __init__(self, sess, inf_sess, attack_graph, inference_graph, model, inf_model, use_keywords = False, batch_size=1, confidence = CONFIDENCE,
+    def __init__(self, sess, inf_sess, attack_graph, inference_graph, model, inf_model, use_keywords = True, use_logits = True, batch_size=1, confidence = CONFIDENCE,
                  targeted = TARGETED, learning_rate = LEARNING_RATE,
                  binary_search_steps = BINARY_SEARCH_STEPS, max_iterations = MAX_ITERATIONS, print_every = 100, early_stop_iters = 0,
                  abort_early = ABORT_EARLY, 
-                 initial_const = INITIAL_CONST,
+                 initial_const = -1,
                  use_log = False, norm = "inf", adam_beta1 = 0.9, adam_beta2 = 0.999):
         """
         The L_2 optimized attack. 
@@ -53,6 +53,10 @@ class CarliniL2:
           the initial constant is not important.
         """
 
+        if initial_const != -1:
+            print("WARNING: initial_const in l2_attack has no effect!")
+            print("WARNING: initial_const in l2_attack has no effect!")
+
         # image_size, num_channels, num_labels = model.image_size, model.num_channels, model.num_labels
         image_size, num_channels = model.image_size, model.num_channels
         self.sess = sess
@@ -65,10 +69,10 @@ class CarliniL2:
         self.BINARY_SEARCH_STEPS = binary_search_steps
         self.ABORT_EARLY = abort_early
         self.CONFIDENCE = confidence
-        self.initial_const = initial_const
         self.batch_size = batch_size
         self.repeat = binary_search_steps >= 10
         self.use_keywords = use_keywords
+        self.use_logits = use_logits
         # store the two graphs
         self.attack_graph = attack_graph
         self.inference_graph = inference_graph
@@ -157,54 +161,87 @@ class CarliniL2:
         # loss1 = tf.reduce_sum(tf.log(self.keywords_probs) * tf.cast(self.key_words_mask, tf.float32))
 
         # these are the true lenghth of logits and keywords without masked words
-        true_logits_len = tf.cast(tf.reduce_sum(self.input_mask), tf.int32) - 1 
-        true_keywords_len = tf.cast(tf.reduce_sum(self.key_words_mask), tf.int32)
-
-        self.logits = self.logits[:true_logits_len]
-        print(self.logits.shape)
-
-        self.keywords_probs = tf.gather(self.logits, self.key_words[:true_keywords_len], axis=1)
-        # evalute each word position, and find the maximum probability keyword at each position
-        self.max_keywords_args = tf.argmax(self.keywords_probs, axis = 1)
-        print(self.keywords_probs.shape) # 19 * 20
-        
-        # get the key word IDs for each position
-        self.key_words_to_dec = tf.cast(tf.gather(self.key_words, self.max_keywords_args), tf.int32)
-        # generate 2-D indices
-        self.indices_to_dec = tf.concat([tf.expand_dims(tf.range(true_logits_len), axis=1), tf.expand_dims(self.key_words_to_dec, axis=1)], axis=1)
-        # generate a mask for the maximum key word probability at each word position
-        self.logits_mask = tf.scatter_nd(self.indices_to_dec, tf.ones(tf.expand_dims(true_logits_len, axis=0)), shape=(true_logits_len, int(self.logits.shape[1])))
-        # modify the logits, add a large negative number to the corresponding max keyword
-        self.modified_logits = self.logits - 10000 * self.logits_mask
-
-        self.max_probs = tf.reduce_max(self.modified_logits, axis=1)
-        print(self.max_probs.shape) # 19
-
-        self.diff_probs = tf.maximum(tf.tile(tf.expand_dims(self.max_probs,1),[1,true_keywords_len]) - self.keywords_probs, - self.CONFIDENCE)
-        print(self.diff_probs.shape)
-
-        self.min_diff_probs = tf.reduce_min(self.diff_probs, axis = 0)
-        loss1 = tf.reduce_sum(self.min_diff_probs)
-        print(loss1.shape)
-        
-        # sum up the losses
-        self.loss2 = tf.reduce_sum(self.lpdist)
-        # self.loss2 = tf.constant(0.0)
-        self.loss1 = tf.reduce_sum(self.const*loss1)
-        # self.loss = self.loss1+self.loss2
 
         if self.use_keywords:
             # use the keywords loss
-            if self.TARGETED:
-                self.loss = self.loss1
+
+            true_logits_len = tf.cast(tf.reduce_sum(self.input_mask), tf.int32) - 1 
+            true_keywords_len = tf.cast(tf.reduce_sum(self.key_words_mask), tf.int32)
+
+            self.logits = self.logits[:true_logits_len]
+            print(self.logits.shape)
+
+            self.keywords_probs = tf.gather(self.logits, self.key_words[:true_keywords_len], axis=1)
+            # evalute each word position, and find the maximum probability keyword at each position
+            self.max_keywords_args = tf.argmax(self.keywords_probs, axis = 1)
+            print(self.keywords_probs.shape) # 19 * 20
+            
+            # get the key word IDs for each position
+            self.key_words_to_dec = tf.cast(tf.gather(self.key_words, self.max_keywords_args), tf.int32)
+            # generate 2-D indices
+            self.indices_to_dec = tf.concat([tf.expand_dims(tf.range(true_logits_len), axis=1), tf.expand_dims(self.key_words_to_dec, axis=1)], axis=1)
+            # generate a mask for the maximum key word probability at each word position
+            self.logits_mask = tf.scatter_nd(self.indices_to_dec, tf.ones(tf.expand_dims(true_logits_len, axis=0)), shape=(true_logits_len, int(self.logits.shape[1])))
+            # modify the logits, add a large negative number to the corresponding max keyword
+            self.modified_logits = self.logits - 10000 * self.logits_mask
+
+            self.max_probs = tf.reduce_max(self.modified_logits, axis=1)
+            print(self.max_probs.shape) # 19
+
+            self.diff_probs = tf.maximum(tf.tile(tf.expand_dims(self.max_probs,1),[1,true_keywords_len]) - self.keywords_probs, - self.CONFIDENCE)
+            print(self.diff_probs.shape)
+
+            self.min_diff_probs = tf.reduce_min(self.diff_probs, axis = 0)
+            loss1 = tf.reduce_sum(self.min_diff_probs)
+            self.loss1 = tf.reduce_sum(self.const*loss1)
+            print(loss1.shape)
+            if self.use_logits:
+                if self.TARGETED:
+                    self.loss = self.loss1 #increase the probability of keywords
+                else:
+                    self.loss = - self.loss1 #decrease the probability of keywords
             else:
-                self.loss = - self.loss1
+                raise ValueError("keywords based attack has to use logits in the loss.")
         else:
-            # use the output probability directly
-            if self.TARGETED:
-                self.loss = self.output
+            # use a new caption
+            if self.use_logits:
+                true_cap_len = tf.cast(tf.reduce_sum(self.input_mask), tf.int32)
+                true_logits_len = tf.cast(tf.reduce_sum(self.input_mask), tf.int32) - 1 
+                self.logits = self.logits[:true_logits_len]
+                print("input_feed shape:", self.input_feed.shape)
+                print("logits shape:", self.logits.shape)
+                self.true_input_feed = tf.cast(self.input_feed[0][:true_cap_len],dtype=tf.int32)
+                print("true_input_feed shape:", self.true_input_feed.shape)
+                self.cap_indices = tf.transpose(tf.concat([[tf.range(true_logits_len)],[self.true_input_feed[1:]]], axis=0))
+                print("cap_indices shape:", self.cap_indices.shape)
+                self.cap_logits = tf.gather_nd(self.logits, self.cap_indices) 
+                print("cap_logits shape:",self.cap_logits.shape)
+                self.logits_mask = tf.scatter_nd(self.cap_indices, tf.ones([true_logits_len]),shape=(true_logits_len, int(self.logits.shape[1])))
+                self.modified_logits = self.logits - 10000 * self.logits_mask
+                self.max_probs = tf.reduce_max(self.modified_logits, axis=1)
+                self.original_max_prob = tf.reduce_max(self.logits, axis=1)
+                self.diff_probs = tf.maximum(self.max_probs - self.cap_logits, -self.CONFIDENCE)
+                print("max_probs shape:",self.max_probs.shape)
+                loss1 = tf.reduce_sum(self.diff_probs)
+                self.loss1 = tf.reduce_sum(self.const*loss1)
+                if self.TARGETED:
+                    self.loss = self.loss1
+                else:
+                    self.loss = - self.loss1
             else:
-                self.loss = - self.output
+                # use the output probability directly
+                if self.TARGETED:
+                    self.loss = - self.output
+                else:
+                    self.loss = self.output
+
+
+        # self.loss2 = tf.constant(0.0)
+        
+        # self.loss = self.loss1+self.loss2
+
+        # regularization loss
+        self.loss2 = tf.reduce_sum(self.lpdist)
 
         self.loss += self.loss2
         
@@ -222,12 +259,13 @@ class CarliniL2:
 
         # these are the variables to initialize when we run
         self.setup = []
+        self.assign_const_op = self.const.assign(self.assign_const)
         self.setup.append(self.key_words.assign(self.assign_key_words))
         self.setup.append(self.key_words_mask.assign(self.assign_key_words_mask))
         self.setup.append(self.timg.assign(self.assign_timg))
         self.setup.append(self.input_feed.assign(self.assign_input_feed))
         self.setup.append(self.input_mask.assign(self.assign_input_mask))
-        self.setup.append(self.const.assign(self.assign_const))
+        self.setup.append(self.assign_const_op)
         # self.grad_op = tf.gradients(self.loss, self.modifier)
         
         self.reset_input = []
@@ -235,7 +273,6 @@ class CarliniL2:
         self.reset_input.append(self.input_mask.assign(self.assign_input_mask))
 
         self.init = tf.variables_initializer(var_list=[self.modifier]+new_vars)
-
 
     def adam_optimizer_tf(self, loss, var):
         with tf.name_scope("adam_optimier"):
@@ -263,7 +300,7 @@ class CarliniL2:
             assign_epoch = tf.assign_add(self.epoch, 1)
             return tf.group(assign_var, assign_mt, assign_vt, assign_epoch)
 
-    def attack(self, imgs, sess, inf_sess, model, inf_model, vocab, cap_key_words, cap_key_words_mask, iter_per_sentence=1):
+    def attack(self, imgs, sess, inf_sess, model, inf_model, vocab, cap_key_words, cap_key_words_mask, attackid, try_id, iter_per_sentence=1, attack_const = 1.0):
         """
         Perform the L_2 attack on the given images for the given targets.
 
@@ -274,11 +311,13 @@ class CarliniL2:
         print('go up to',len(imgs))
         for i in range(0,len(imgs),self.batch_size):
             print('tick',i)
-            r.extend(self.attack_batch(imgs[i:i+self.batch_size], sess, inf_sess, model, inf_model, vocab, cap_key_words, cap_key_words_mask, iter_per_sentence)[0])
-        return np.array(r)
+            t = self.attack_batch(imgs[i:i+self.batch_size], sess, inf_sess, model, inf_model, vocab, cap_key_words, cap_key_words_mask, iter_per_sentence, attackid, try_id, attack_const)
+            # r.extend(t[0])
+        return t
+        # return np.array(r)
 
-    def attack_batch(self, imgs, sess, inf_sess, model, inf_model, vocab, key_words, key_words_mask, iter_per_sentence):
-   
+    def attack_batch(self, imgs, sess, inf_sess, model, inf_model, vocab, key_words, key_words_mask, iter_per_sentence, attackid, try_id, attack_const = 1.0):
+        max_caption_length = 20
         batch_size = self.batch_size
 
         # convert to tanh-space
@@ -286,7 +325,7 @@ class CarliniL2:
 
         # set the lower and upper bounds accordingly
         lower_bound = np.zeros(batch_size)
-        CONST = np.ones(batch_size)*self.initial_const
+        CONST = np.ones(batch_size) * attack_const
         upper_bound = np.ones(batch_size)*1e10
         # completely reset adam's internal state.
         self.sess.run(self.init)
@@ -294,10 +333,6 @@ class CarliniL2:
         # batchkeywords = key_words[:batch_size]
         # batchseqs = input_seqs[:batch_size]
         # batchmasks = input_masks[:batch_size]
-
-        # The last iteration (if we run many steps) repeat the search once.
-        if self.repeat == True and outer_step == self.BINARY_SEARCH_STEPS-1:
-            CONST = upper_bound
 
         # set the variables so that we don't have to send them over again
         if self.use_keywords:
@@ -307,7 +342,7 @@ class CarliniL2:
             infer_caption = captions[0].sentence
             # infer_caption = [1, 0, 11, 46, 0, 195, 4, 33, 5, 0, 155, 3, 2]
             true_infer_cap_len = len(infer_caption)
-            max_caption_length = 20
+            
             infer_caption = infer_caption + [vocab.end_id]*(max_caption_length-true_infer_cap_len)
             infer_mask = np.append(np.ones(true_infer_cap_len),np.zeros(max_caption_length-true_infer_cap_len))
         else:
@@ -337,14 +372,12 @@ class CarliniL2:
                 # old_modifier = self.sess.run(self.modifier)
                 # np.save('white_iter_{}'.format(iteration), modifier)
                 loss, grad, loss1, loss2 = self.sess.run((self.loss,self.grad,self.loss1,self.loss2))
-                print("[STATS][L2] iter = {}, time = {:.8f}, grad_norm = {:.5g}, loss = {:.5g}, loss1 = {:.5g}, loss2 = {:.5g}".format(iteration, train_timer, np.linalg.norm(grad), loss, loss1, loss2))
+                print("[attack No.{}] [try No.{}] [C={:.5g}] iter = {}, time = {:.8f}, grad_norm = {:.5g}, loss = {:.5g}, loss1 = {:.5g}, loss2 = {:.5g}".format(attackid, try_id, CONST[0], iteration, train_timer, np.linalg.norm(grad), loss, loss1, loss2))
                 sys.stdout.flush()
 
             attack_begin_time = time.time()
             # perform the attack 
-            _, l, lps, scores, softmax, nimg = self.sess.run([self.train, self.loss, 
-                                                     self.lpdist, self.output, 
-                                                     self.softmax, self.newimg])
+            _, l, l1, l2, lps, scores, softmax, nimg = self.sess.run([self.train, self.loss, self.loss1, self.loss2, self.lpdist, self.output, self.softmax, self.newimg])
             
             '''
             # add noise if gradient is zero
@@ -355,33 +388,54 @@ class CarliniL2:
             '''
 
             # update softmax using the latest variable
-            if self.use_keywords:
-                keywords_probs, max_probs, diff_probs, min_diff_probs, softmax, logits, modified_logits = self.sess.run([self.keywords_probs, self.max_probs, self.diff_probs, self.min_diff_probs, self.softmax, self.logits, self.modified_logits])
-                # print("keywords probs:", keywords_probs[:int(np.sum(key_words_mask))])
-                print("keywords probs:\n", keywords_probs)
-                print("max probs:\n", max_probs)
-                print("diff probs:\n", diff_probs)
-                print("min diff probs:\n", min_diff_probs)
+            if self.use_logits:
+                if self.use_keywords:
+                    keywords_probs, max_probs, diff_probs, min_diff_probs, softmax, logits, modified_logits = self.sess.run([self.keywords_probs, self.max_probs, self.diff_probs, self.min_diff_probs, self.softmax, self.logits, self.modified_logits])
+                    # print("keywords probs:", keywords_probs[:int(np.sum(key_words_mask))])
+                    print("keywords probs:\n", keywords_probs)
+                    print("max probs:\n", max_probs)
+                    print("diff probs:\n", diff_probs)
+                    print("min diff probs:\n", min_diff_probs)
+                else:
 
-            # TODO: use beam search in inference mode here
+                    logits, modified_logits, cap_logits, diff_probs, original_max_prob= self.sess.run([self.logits, self.modified_logits, self.cap_logits, self.diff_probs, self.original_max_prob])
+                    # print("keywords probs:", keywords_probs[:int(np.sum(key_words_mask))])
+                    print("cap_logits:\n", cap_logits)
+                    print("diff_probsbs:\n", diff_probs)
+                    print("original_max_prob:\n", original_max_prob)
+                    
 
-            if self.use_keywords and iteration % iter_per_sentence == 0:
+            
+            # use beam search in inference mode here if we do key_words based attack
+            if iteration % iter_per_sentence == 0:
                 # infer_caption = np.argmax(np.array(softmax), axis=1)
                 # infer_caption = np.append([vocab.start_id], infer_caption).tolist()
-                generator = caption_generator.CaptionGenerator(inf_model, vocab)
+                # generator = caption_generator.CaptionGenerator(inf_model, vocab)
                 # print(nimg[0].shape)
-                captions = generator.beam_search(inf_sess, nimg[0])
-                infer_caption = captions[0].sentence
-                sentence = [vocab.id_to_word(w) for w in infer_caption]
+                # captions = generator.beam_search(inf_sess, nimg[0])
+                # infer_caption = captions[0].sentence
+                # sentence = [vocab.id_to_word(w) for w in infer_caption]
 
-                print("inference sentence:",sentence)
+                # print("inference sentence:",sentence)
                 true_key_words = key_words[:int(np.sum(key_words_mask))]
-                if self.TARGETED and set(true_key_words).issubset(infer_caption):
-                    if lps[0] < best_lp:
-                        best_lp = lps[0]
+                if self.use_keywords:
+                    if self.TARGETED and set(true_key_words).issubset(infer_caption):
+                        if lps[0] < best_lp:
+                            best_lp = lps[0]
+                            best_img = np.array(nimg)
+                            best_loss1 = l1
+                            best_loss2 = l2
+                            best_loss = l
+                        print("a valid attack is found, lp =", lps[0], ", best =", best_lp)
+                        # break
+                else:
+                    if self.TARGETED and l < best_lp:
+                        best_lp = l
                         best_img = np.array(nimg)
-                    print("a valid attack is found, lp =", lps[0], ", best =", best_lp)
-                    break
+                        best_loss1 = l1
+                        best_loss2 = l2
+                        best_loss = l
+                    
                 # print("max likelihood id array found:", infer_caption)
                 if 2 in infer_caption:
                 	true_infer_cap_len = infer_caption.index(2)+1
@@ -392,8 +446,11 @@ class CarliniL2:
                 # print("input id array for next iteration:", infer_caption)
                 # print("input mask for next iteration:", infer_mask)
                 # print caption in each iteration
-                self.sess.run(self.reset_input, {self.assign_input_mask: [infer_mask],
-                                           self.assign_input_feed: [infer_caption]})
+                if self.use_keywords:
+                    self.sess.run(self.reset_input, {self.assign_input_mask: [infer_mask],
+                                               self.assign_input_feed: [infer_caption]})
+            
+
             # print(grad[0].reshape(-1))
             # print((old_modifier - new_modifier).reshape(-1))
 
@@ -406,7 +463,7 @@ class CarliniL2:
             train_timer += time.time() - attack_begin_time
 
         if best_img is None:
-            return np.array(nimg), CONST
+            return np.array(nimg), best_loss, best_loss1, best_loss2, CONST
         else:
-            return best_img, CONST
+            return best_img, best_loss, best_loss1, best_loss2, CONST
 

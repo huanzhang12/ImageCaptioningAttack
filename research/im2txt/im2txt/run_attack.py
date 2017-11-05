@@ -46,8 +46,12 @@ tf.flags.DEFINE_bool("use_keywords", False,
                        "Use keywords based attack instead of exact attack")
 tf.flags.DEFINE_bool("targeted", False,
                        "Use targeted attack")
+tf.flags.DEFINE_bool("use_logits", True,
+                       "Use logits as loss")
 tf.flags.DEFINE_string("norm", "inf",
                         "norm to use: inf or l2")
+tf.flags.DEFINE_string("input_feed", "",
+                        "keywords or caption input")
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -99,7 +103,7 @@ def main(_):
     model = attack_wrapper.AttackWrapper()
     sess = tf.Session(config=config)
     # build the attacker graph
-    attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, batch_size=1, initial_const = 1.0, max_iterations=1000, print_every=1, confidence=1, use_log=False, norm=FLAGS.norm, abort_early=False, learning_rate=0.005)
+    attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, use_logits = FLAGS.use_logits, batch_size=1, initial_const = 1.0, max_iterations=1000, print_every=1, confidence=2, use_log=False, norm=FLAGS.norm, abort_early=False, learning_rate=0.005)
     # compute graph for preprocessing
     image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
     preprocessor = model.model.process_image(image_placeholder)
@@ -119,6 +123,7 @@ def main(_):
 
     print('raw image size:', raw_image.shape)
 
+    '''
     new_sentence = "kite"
     new_sentence = "a man on a surfboard riding a wave ."
     new_sentence = "a dog riding a bike on a road ."
@@ -126,6 +131,12 @@ def main(_):
     new_sentence = "a person skiing down a snow covered slope ." # success, p=0.021917
     new_sentence = "a person on a beach flying a kite ." # success, p=0.019417
     new_sentence = "a black and white photo of a train on a track ." # success, p=0.006146
+    new_sentence = "a bowl of pasta with meat and vegetables ."
+    new_sentence = "a man and girl carrying kites down a sidewalk in front of a metro bus ." # end up with "a group of people standing on top of a sandy beach ." same as a sentence in training set
+    new_sentence = "a man and girl carrying surfboards down a sidewalk in front of a metro bus ."# same as in training set
+    '''
+    
+    new_sentence = FLAGS.input_feed
     new_sentence = new_sentence.split()
     print("My new sentence:", new_sentence)
     max_caption_length = 20
@@ -144,6 +155,7 @@ def main(_):
     # key_words = [vocab.word_to_id("photo"), vocab.word_to_id("train"), vocab.word_to_id("track")]
     # words = ["train", "photo", "track"]
     words = ["riding", "train", "long"]
+    words = FLAGS.input_feed.split()
     key_words = [vocab.word_to_id(word) for word in words]
     print(key_words)
     # key_words = [vocab.word_to_id("bird"), vocab.word_to_id("flying")]

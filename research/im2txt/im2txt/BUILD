@@ -119,3 +119,43 @@ py_binary(
     ],
 )
 
+py_binary(
+    name = "run_attack_BATCH",
+    srcs = ["run_attack_BATCH.py"],
+    srcs_version = "PY2AND3",
+    deps = [
+        ":configuration",
+        ":attack_wrapper",
+	":inference_wrapper",
+        "//im2txt/inference_utils:caption_generator",
+        "//im2txt/inference_utils:vocabulary",
+    ],
+)
+
+py_binary(
+    name = "run_attack_unsuccess",
+    srcs = ["run_attack_unsuccess.py"],
+    srcs_version = "PY2AND3",
+    deps = [
+        ":configuration",
+        ":attack_wrapper",
+	":inference_wrapper",
+        "//im2txt/inference_utils:caption_generator",
+        "//im2txt/inference_utils:vocabulary",
+    ],
+)
+
+py_binary(
+    name = "run_attack_BATCH_search_C",
+    srcs = ["run_attack_BATCH_search_C.py"],
+    srcs_version = "PY2AND3",
+    deps = [
+        ":configuration",
+        ":attack_wrapper",
+	":inference_wrapper",
+        "//im2txt/inference_utils:caption_generator",
+        "//im2txt/inference_utils:vocabulary",
+    ],
+)
+
+
