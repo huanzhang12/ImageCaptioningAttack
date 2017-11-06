@@ -94,11 +94,12 @@ def main(_):
     caption_file = json.load(data_file)
   caption_info = caption_file['annotations']
 
+  print("using" + FLAGS.norm +"for attack")
 
   record = open(record_path + "record_"+str(FLAGS.offset)+".csv","a+")
   writer = csv.writer(record)
-  writer.writerow( ("target filename","attack filename",\
-  	"L2 distortion","L_inf distortion","loss","loss1","loss2",\
+  header = ("target filename","attack filename",\
+    "L2 distortion","L_inf distortion","loss","loss1","loss2",\
     "optimal C","attack successful?",\
     "target caption 1","target caption 1 probability",\
     "target caption 2","target caption 2 probability",\
@@ -111,11 +112,12 @@ def main(_):
     "caption before attack 3","caption before attack 3 probability",\
     "caption before attack 4","caption before attack 4 probability",\
     "caption before attack 5","caption before attack 5 probability",\
-  	"caption after attack 1","caption after attack 1 probability",\
+    "caption after attack 1","caption after attack 1 probability",\
     "caption after attack 2","caption after attack 2 probability",\
     "caption after attack 3","caption after attack 3 probability",\
     "caption after attack 4","caption after attack 4 probability",\
-    "caption after attack 5","caption after attack 5 probability") )
+    "caption after attack 5","caption after attack 5 probability")
+  writer.writerow(header)
   record.close()
   gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.4)
   config=tf.ConfigProto(gpu_options=gpu_options)
@@ -152,7 +154,7 @@ def main(_):
     sess = tf.Session(config=config)
     # build the attacker graph
     print("target:",FLAGS.targeted)
-    attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, use_logits = FLAGS.use_logits, batch_size=1, initial_const = FLAGS.C, max_iterations=1000, print_every=1, confidence=1, use_log=False, norm=FLAGS.norm, abort_early=False, learning_rate=0.005)
+    attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, use_logits = FLAGS.use_logits, batch_size=1, initial_const = FLAGS.C, max_iterations=80, print_every=1, confidence=1, use_log=False, norm=FLAGS.norm, abort_early=False, learning_rate=0.005)
     # compute graph for preprocessing
     image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
     preprocessor = model.model.process_image(image_placeholder)
@@ -225,10 +227,17 @@ def main(_):
 
 
     # run multiple attacks
-    success = [False] * FLAGS.C_search_times
-    C_val = [FLAGS.C] * FLAGS.C_search_times
+    success = []
+    C_val = [FLAGS.C]
     best_adv = None
     best_loss, best_loss1, best_loss2 = None, None, None
+    l2_distortion_log = []
+    linf_distortion_log = []
+    best_l2_distortion = 10000
+    best_linf_distortion = 10000
+    adv_log = []
+    loss1_log = []
+    loss2_log = []
     for try_index in range(FLAGS.C_search_times):
       
       # attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, use_logits = FLAGS.use_logits, batch_size=1, initial_const = C_val[try_index], max_iterations=1000, print_every=1, confidence=1, use_log=False, norm=FLAGS.norm, abort_early=False, learning_rate=0.005)
@@ -236,6 +245,8 @@ def main(_):
       # preprocessor = model.model.process_image(image_placeholder)
 
       attack_const = C_val[try_index]
+      
+
 
       if FLAGS.use_keywords:
         # keywords based attack
@@ -258,59 +269,78 @@ def main(_):
         print("My target id:", new_caption)
         new_mask = np.append(np.ones(true_cap_len),np.zeros(max_caption_length-true_cap_len))
         adv, loss, loss1, loss2, _ = attack.attack(np.array([raw_image]), sess, inf_sess,model, inf_model, vocab, new_caption, new_mask, j, try_index, 1, attack_const = attack_const)
+        adv_log += [adv]
+        loss_log += [loss]
+        loss1_log += [loss1]
+        loss2_log += [loss2]
 
-      l2_distortion = np.sum((adv - raw_image)**2)**.5
-      linf_distortion = np.max(np.abs(adv - raw_image))
-      print("L2 distortion is", l2_distortion)
-      print("L_inf distortion is", linf_distortion)
-      
 
-      # show(raw_image, record_path, "original_"+attack_filename.replace(".jpg",".png"))
-      # show(adv, record_path, "adversarial_"+attack_filename.replace(".jpg",".png"))
-      # show(adv - raw_image, record_path, "diff_"+attack_filename.replace(".jpg",".png"))
-
-  	    
-
-      # adv_filename = record_path+"adversarial_"+attack_filename.replace(".jpg",".png.npy")
-      # adv_image = np.squeeze(np.load(adv_filename))
-      # adv_captions = inf_generator.beam_search(inf_sess, adv_image)
       adv_captions = inf_generator.beam_search(inf_sess, np.squeeze(adv))
       print("Captions after this attempt:")
       adv_caption = adv_captions[0]
       adv_sentence = [vocab.id_to_word(w) for w in adv_caption.sentence[1:-1]]
       adv_sentence = " ".join(adv_sentence)
       print("  %d) %s (p=%f)" % (1, adv_sentence, math.exp(adv_caption.logprob)))
-      
-
-
-      success[try_index] = (adv_sentence==target_sentences[0])
+      success += [(adv_sentence==target_sentences[0])]
       print("Attack with this C is successful?", success[try_index])
 
+      l2_distortion = np.sum((adv - raw_image)**2)**.5
+      linf_distortion = np.max(np.abs(adv - raw_image))
+      l2_distortion_log += [l2_distortion]
+      linf_distortion_log += [linf_distortion]
+      print("L2 distortion is", l2_distortion)
+      print("L_inf distortion is", linf_distortion)
       if success[try_index]:
-        best_adv = adv
-        best_loss, best_loss1, best_loss2 = loss, loss1, loss2
+        if FLAGS.norm == "l2":
+          if l2_distortion<best_l2_distortion: 
+            best_adv = adv
+            best_loss, best_loss1, best_loss2 = loss, loss1, loss2
+            best_l2_distortion = l2_distortion
+            best_linf_distortion = linf_distortion
+            final_C = C_val[try_index]
+        elif FLAGS.norm == "inf":
+          if linf_distortion<best_linf_distortion:
+            best_adv = adv
+            best_loss, best_loss1, best_loss2 = loss, loss1, loss2
+            best_l2_distortion = l2_distortion
+            best_linf_distortion = linf_distortion
+        else:
+          raise ValueError("unsupported distance metric:" + FLAGS.norm)
 
       if try_index + 1 < FLAGS.C_search_times:
         if success[try_index]:
-          C_val[try_index+1] = C_val[try_index] * 0.5
-        elif not any(_ for _ in success):
-          C_val[try_index+1] = C_val[try_index] * 10.0
+          if any(not _ for _ in success):
+            last_false = len(success) - success[::-1].index(False) - 1
+            C_val += [0.5 * (C_val[try_index] + C_val[last_false])]
+          else:
+            C_val += [C_val[try_index] * 0.5]
         else:
-          last_true = len(success) - success[::-1].index(True) - 1
-          C_val[try_index+1] = 0.5 * (C_val[try_index] + C_val[last_true])
+          if any(_ for _ in success):
+            last_true = len(success) - success[::-1].index(True) - 1
+            C_val += [0.5 * (C_val[try_index] + C_val[last_true])]
+          else:
+            C_val += [C_val[try_index] * 10.0]
 
-
+    print("results of each attempt:", success)
+    print("C values of each attempt:", C_val)
+    print("L2 distortion log is", l2_distortion_log)
+    print("L_inf distortion log is", linf_distortion_log)
     final_success = any(_ for _ in success)
-    if final_success:
-      last_true = len(success) - success[::-1].index(True) - 1
-      final_C = C_val[last_true]
-    else:
+    
+    if not final_success:
       final_C = C_val[-1]
       best_adv = adv
       best_loss, best_loss1, best_loss2 = loss, loss1, loss2
 
+
     show(best_adv, record_path, "adversarial_"+attack_filename.replace(".jpg",".png"))
     show(best_adv - raw_image, record_path, "diff_"+attack_filename.replace(".jpg",".png"))
+
+    
+    best_l2_distortion = np.sum((best_adv - raw_image)**2)**.5
+    best_linf_distortion = np.max(np.abs(best_adv - raw_image))
+    print("best L2 distortion is", best_l2_distortion)
+    print("best L_inf distortion is", best_linf_distortion)
 
     adv_filename = record_path+"adversarial_"+attack_filename.replace(".jpg",".png.npy")
     adv_image = np.squeeze(np.load(adv_filename))
@@ -328,14 +358,14 @@ def main(_):
     record = open(record_path + "record_"+str(FLAGS.offset)+".csv","a+")
     writer = csv.writer(record)
     writer.writerow( (target_filename,attack_filename,\
-      str(l2_distortion),str(linf_distortion),best_loss,best_loss1,best_loss2,\
+      str(best_l2_distortion),str(best_linf_distortion),best_loss,best_loss1,best_loss2,\
       str(final_C),str(final_success),\
       target_sentences[0],str(target_probs[0]),\
       target_sentences[1],str(target_probs[1]),\
       target_sentences[2],str(target_probs[2]),\
       target_sentences[3],str(target_probs[3]),\
       target_sentences[4],str(target_probs[4]),\
-      human_cap,
+      human_cap,\
       raw_sentences[0],str(raw_probs[0]),\
       raw_sentences[1],str(raw_probs[1]),\
       raw_sentences[2],str(raw_probs[2]),\
@@ -347,11 +377,14 @@ def main(_):
       adv_sentences[3],str(adv_probs[3]),\
       adv_sentences[4],str(adv_probs[4])))
     record.close()
+    print("****************************** END OF THIS ATTACK ***********************************")
 
   inf_sess.close()
   target_sess.close()
   
   sess.close()
-      
+
+
+
 if __name__ == "__main__":
   tf.app.run()
