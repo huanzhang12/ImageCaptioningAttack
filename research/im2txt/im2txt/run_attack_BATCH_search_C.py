@@ -96,8 +96,6 @@ def main(_):
 
   print("using" + FLAGS.norm +"for attack")
 
-  record = open(record_path + "record_"+str(FLAGS.offset)+".csv","a+")
-  writer = csv.writer(record)
   header = ("target filename","attack filename",\
     "L2 distortion","L_inf distortion","loss","loss1","loss2",\
     "optimal C","attack successful?",\
@@ -117,8 +115,16 @@ def main(_):
     "caption after attack 3","caption after attack 3 probability",\
     "caption after attack 4","caption after attack 4 probability",\
     "caption after attack 5","caption after attack 5 probability")
+  record = open(record_path + "record_"+str(FLAGS.offset)+".csv","a+")
+  writer = csv.writer(record)
   writer.writerow(header)
   record.close()
+
+  fail_log = open(record_path + "fail_log/record_"+str(FLAGS.offset)+".csv","a+")
+  fail_log_writer = csv.writer(fail_log)
+  fail_log_writer.writerow(header)
+  fail_log.close()
+
   gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.4)
   config=tf.ConfigProto(gpu_options=gpu_options)
   vocab = vocabulary.Vocabulary(FLAGS.vocab_file)
@@ -154,7 +160,7 @@ def main(_):
     sess = tf.Session(config=config)
     # build the attacker graph
     print("target:",FLAGS.targeted)
-    attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, use_logits = FLAGS.use_logits, batch_size=1, initial_const = FLAGS.C, max_iterations=80, print_every=1, confidence=1, use_log=False, norm=FLAGS.norm, abort_early=False, learning_rate=0.005)
+    attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, use_logits = FLAGS.use_logits, batch_size=1, initial_const = FLAGS.C, max_iterations=1000, print_every=1, confidence=1, use_log=False, norm=FLAGS.norm, abort_early=False, learning_rate=0.005)
     # compute graph for preprocessing
     image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
     preprocessor = model.model.process_image(image_placeholder)
@@ -233,16 +239,14 @@ def main(_):
     best_loss, best_loss1, best_loss2 = None, None, None
     l2_distortion_log = []
     linf_distortion_log = []
-    best_l2_distortion = 10000
-    best_linf_distortion = 10000
+    best_l2_distortion = 1e10
+    best_linf_distortion = 1e10
     adv_log = []
     loss1_log = []
     loss2_log = []
+    loss_log = []
     for try_index in range(FLAGS.C_search_times):
       
-      # attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, use_logits = FLAGS.use_logits, batch_size=1, initial_const = C_val[try_index], max_iterations=1000, print_every=1, confidence=1, use_log=False, norm=FLAGS.norm, abort_early=False, learning_rate=0.005)
-      # image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
-      # preprocessor = model.model.process_image(image_placeholder)
 
       attack_const = C_val[try_index]
       
@@ -304,6 +308,7 @@ def main(_):
             best_loss, best_loss1, best_loss2 = loss, loss1, loss2
             best_l2_distortion = l2_distortion
             best_linf_distortion = linf_distortion
+            final_C = C_val[try_index]
         else:
           raise ValueError("unsupported distance metric:" + FLAGS.norm)
 
@@ -331,8 +336,10 @@ def main(_):
       final_C = C_val[-1]
       best_adv = adv
       best_loss, best_loss1, best_loss2 = loss, loss1, loss2
+      save_fail_log(adv_log, loss_log, loss1_log, loss2_log, l2_distortion_log, linf_distortion_log, success, C_val, record_path, attack_filename, target_filename, raw_image, human_cap,\
+       target_sentences, target_probs, raw_sentences, raw_probs, inf_sess, inf_generator, vocab)
 
-
+    
     show(best_adv, record_path, "adversarial_"+attack_filename.replace(".jpg",".png"))
     show(best_adv - raw_image, record_path, "diff_"+attack_filename.replace(".jpg",".png"))
 
@@ -358,8 +365,8 @@ def main(_):
     record = open(record_path + "record_"+str(FLAGS.offset)+".csv","a+")
     writer = csv.writer(record)
     writer.writerow( (target_filename,attack_filename,\
-      str(best_l2_distortion),str(best_linf_distortion),best_loss,best_loss1,best_loss2,\
-      str(final_C),str(final_success),\
+      best_l2_distortion,best_linf_distortion,best_loss,best_loss1,best_loss2,\
+      final_C,str(final_success),\
       target_sentences[0],str(target_probs[0]),\
       target_sentences[1],str(target_probs[1]),\
       target_sentences[2],str(target_probs[2]),\
@@ -384,7 +391,43 @@ def main(_):
   
   sess.close()
 
+def save_fail_log(adv_log, loss_log, loss1_log, loss2_log, l2_distortion_log, linf_distortion_log, success, C_val, record_path, attack_filename, target_filename, raw_image,human_cap,\
+ target_sentences, target_probs, raw_sentences, raw_probs, inf_sess,inf_generator,vocab):
+  for i in range(len(adv_log)):
+    show(adv_log[i], record_path+"fail_log/", "fail_adversarial_C_"+str(C_val[i])+attack_filename.replace(".jpg",".png"))
+    show(adv_log[i] - raw_image, record_path+"fail_log/", "fail_diff_C_"+str(C_val[i])+attack_filename.replace(".jpg",".png"))
 
+    fail_log = open(record_path + "fail_log/record_"+str(FLAGS.offset)+".csv","a+")
+    fail_log_writer = csv.writer(fail_log)
+    adv_captions = inf_generator.beam_search(inf_sess, np.squeeze(adv_log[i]))
+    adv_sentences = []
+    adv_probs = []
+
+    for indx, adv_caption in enumerate(adv_captions):
+      adv_sentence = [vocab.id_to_word(w) for w in adv_caption.sentence[1:-1]]
+      adv_sentence = " ".join(adv_sentence)
+      adv_sentences = adv_sentences + [adv_sentence]
+      adv_probs = adv_probs + [math.exp(adv_caption.logprob)]
+    fail_log_writer.writerow( (target_filename,attack_filename,\
+      l2_distortion_log[i],linf_distortion_log[i],loss_log[i],loss1_log[i],loss2_log[i],\
+      C_val[i],success[i],\
+      target_sentences[0],str(target_probs[0]),\
+      target_sentences[1],str(target_probs[1]),\
+      target_sentences[2],str(target_probs[2]),\
+      target_sentences[3],str(target_probs[3]),\
+      target_sentences[4],str(target_probs[4]),\
+      human_cap,\
+      raw_sentences[0],str(raw_probs[0]),\
+      raw_sentences[1],str(raw_probs[1]),\
+      raw_sentences[2],str(raw_probs[2]),\
+      raw_sentences[3],str(raw_probs[3]),\
+      raw_sentences[4],str(raw_probs[4]),\
+      adv_sentences[0],str(adv_probs[0]),\
+      adv_sentences[1],str(adv_probs[1]),\
+      adv_sentences[2],str(adv_probs[2]),\
+      adv_sentences[3],str(adv_probs[3]),\
+      adv_sentences[4],str(adv_probs[4])))
+    fail_log.close()
 
 if __name__ == "__main__":
   tf.app.run()
