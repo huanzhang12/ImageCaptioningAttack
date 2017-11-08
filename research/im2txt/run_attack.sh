@@ -1,5 +1,10 @@
 #!/bin/bash
-source activate tensorflow
+if [ "$(arch)" = "x86_64" ]; then
+    source activate tensorflow
+fi
+if [ "$(arch)" = "ppc64le" ]; then
+    source activate huanpy36
+fi
 cd ~/im2txt
 DATA_FOLDER="/data/mscoco/image/val2014/"
 IMAGE_FILE="${DATA_FOLDER}COCO_val2014_000000224477.jpg"
