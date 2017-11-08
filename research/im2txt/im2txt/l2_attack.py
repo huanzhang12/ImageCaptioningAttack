@@ -412,9 +412,11 @@ class CarliniL2:
                 # infer_caption = np.append([vocab.start_id], infer_caption).tolist()
                 # generator = caption_generator.CaptionGenerator(inf_model, vocab)
                 # print(nimg[0].shape)
-                # captions = generator.beam_search(inf_sess, nimg[0])
-                # infer_caption = captions[0].sentence
-                # sentence = [vocab.id_to_word(w) for w in infer_caption]
+                if self.use_keywords:
+                    captions = generator.beam_search(inf_sess, nimg[0])
+                    infer_caption = captions[0].sentence
+                    sentence = [vocab.id_to_word(w) for w in infer_caption]
+                    print(sentence)
 
                 # print("inference sentence:",sentence)
                 true_key_words = key_words[:int(np.sum(key_words_mask))]

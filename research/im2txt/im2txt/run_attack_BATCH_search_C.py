@@ -65,12 +65,14 @@ tf.flags.DEFINE_integer("offset", 0,
                         "attack start offset")
 tf.flags.DEFINE_float("C", 1,
                         "initial constant multiplied with loss1")
+tf.flags.DEFINE_integer("iters", 1000,
+                        "number of iterations")
 tf.flags.DEFINE_integer("C_search_times", 5,
                         "try how many times for C")
 tf.flags.DEFINE_string("caption_file","","human caption file")
 
-# tf.flags.DEFINE_string("input_feed", "",
-#                        "keywords or caption input")
+tf.flags.DEFINE_string("input_feed", "",
+                       "keywords or caption input")
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -160,7 +162,7 @@ def main(_):
     sess = tf.Session(config=config)
     # build the attacker graph
     print("target:",FLAGS.targeted)
-    attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, use_logits = FLAGS.use_logits, batch_size=1, initial_const = FLAGS.C, max_iterations=1000, print_every=1, confidence=1, use_log=False, norm=FLAGS.norm, abort_early=False, learning_rate=0.005)
+    attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, use_logits = FLAGS.use_logits, batch_size=1, initial_const = FLAGS.C, max_iterations=FLAGS.iters, print_every=1, confidence=1, use_log=False, norm=FLAGS.norm, abort_early=False, learning_rate=0.005)
     # compute graph for preprocessing
     image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
     preprocessor = model.model.process_image(image_placeholder)
@@ -251,6 +253,7 @@ def main(_):
       attack_const = C_val[try_index]
       
 
+      max_caption_length = 20
 
       if FLAGS.use_keywords:
         # keywords based attack
@@ -259,24 +262,25 @@ def main(_):
         print(key_words)
         key_words_mask = np.append(np.ones(len(key_words)),np.zeros(max_caption_length-len(key_words)))
         key_words = key_words + [vocab.end_id]*(max_caption_length-len(key_words))
-        adv = attack.attack(np.array([raw_image]), sess, inf_sess, model, inf_model, vocab, key_words, key_words_mask, j, try_index, 1, attack_const = attack_const)
+        adv, loss, loss1, loss2, _ = attack.attack(np.array([raw_image]), sess, inf_sess, model, inf_model, vocab, key_words, key_words_mask, j, try_index, 1, attack_const = attack_const)
       else:
         # exact attack
         new_sentence = target_sentences[0]
         # new_sentence = "a black and white photo of a train on a track ."
         new_sentence = new_sentence.split()
         print("My target sentence:", new_sentence)
-        max_caption_length = 20
         new_caption = [vocab.start_id]+[vocab.word_to_id(w) for w in new_sentence] + [vocab.end_id]
         true_cap_len = len(new_caption)
         new_caption = new_caption + [vocab.end_id]*(max_caption_length-true_cap_len)
         print("My target id:", new_caption)
         new_mask = np.append(np.ones(true_cap_len),np.zeros(max_caption_length-true_cap_len))
         adv, loss, loss1, loss2, _ = attack.attack(np.array([raw_image]), sess, inf_sess,model, inf_model, vocab, new_caption, new_mask, j, try_index, 1, attack_const = attack_const)
-        adv_log += [adv]
-        loss_log += [loss]
-        loss1_log += [loss1]
-        loss2_log += [loss2]
+
+      # save information of this image to log array
+      adv_log += [adv]
+      loss_log += [loss]
+      loss1_log += [loss1]
+      loss2_log += [loss2]
 
 
       adv_captions = inf_generator.beam_search(inf_sess, np.squeeze(adv))
