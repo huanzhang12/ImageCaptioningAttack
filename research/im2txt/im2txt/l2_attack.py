@@ -362,6 +362,9 @@ class CarliniL2:
         train_timer = 0.0
         best_lp = 1e10
         best_img = None
+        best_loss1 = 1e10
+        best_loss2 = 1e10
+        best_loss = 1e10
         for iteration in range(self.MAX_ITERATIONS):
             attack_begin_time = time.time()
             # print out the losses every 10%
@@ -422,8 +425,7 @@ class CarliniL2:
                 true_key_words = key_words[:int(np.sum(key_words_mask))]
                 if self.use_keywords:
                     if self.TARGETED and set(true_key_words).issubset(infer_caption):
-                        if lps[0] < best_lp:
-                            best_lp = lps[0]
+                        if l < best_loss:
                             best_img = np.array(nimg)
                             best_loss1 = l1
                             best_loss2 = l2
@@ -431,12 +433,12 @@ class CarliniL2:
                         print("a valid attack is found, lp =", lps[0], ", best =", best_lp)
                         # break
                 else:
-                    if self.TARGETED and l < best_lp:
-                        best_lp = l
+                    if self.TARGETED and l < best_loss:
+                        best_loss = l
                         best_img = np.array(nimg)
                         best_loss1 = l1
                         best_loss2 = l2
-                        best_loss = l
+                        
                     
                 # print("max likelihood id array found:", infer_caption)
                 if 2 in infer_caption:
