@@ -427,17 +427,19 @@ class CarliniL2:
                     if self.TARGETED and set(true_key_words).issubset(infer_caption):
                         if l < best_loss:
                             best_img = np.array(nimg)
+                            best_loss = l
                             best_loss1 = l1
                             best_loss2 = l2
-                            best_loss = l
+                            
                         print("a valid attack is found, lp =", lps[0], ", best =", best_lp)
-                        # break
+                        # break 
                 else:
                     if self.TARGETED and l < best_loss:
-                        best_loss = l
                         best_img = np.array(nimg)
+                        
                         best_loss1 = l1
                         best_loss2 = l2
+                        best_loss = l
                         
                     
                 # print("max likelihood id array found:", infer_caption)

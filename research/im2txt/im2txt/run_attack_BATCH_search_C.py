@@ -19,6 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from l2_attack import CarliniL2
 import math
+import nltk
 import os
 import csv
 import re
@@ -167,7 +168,7 @@ def main(_):
   inf_restore_fn(inf_sess)
   inf_generator = caption_generator.CaptionGenerator(inf_model, vocab, beam_size=5)
 
-  if not FLAGS.use_keywords:
+  if FLAGS.targeted and not FLAGS.use_keywords:
     target_g = tf.Graph()
     with target_g.as_default():
       target_model = inference_wrapper.InferenceWrapper()
@@ -209,7 +210,7 @@ def main(_):
       adverb_keywords = [adverb[item] for item in (np.array(range(POS_num[3]))+j*POS_num[3])%len(adverb)]
       words = list(set(noun_keywords+verb_keywords+adjective_keywords+adverb_keywords))
 
-    if not FLAGS.use_keywords:
+    if FLAGS.targeted and not FLAGS.use_keywords:
       target_filename = filenames[j+FLAGS.offset]
       print("Captions for target image %s:" % os.path.basename(target_filename))
       with tf.gfile.GFile(image_directory+target_filename, "rb") as f:
@@ -253,6 +254,10 @@ def main(_):
       raw_sentences = raw_sentences + [raw_sentence]
       raw_probs = raw_probs + [math.exp(raw_caption.logprob)]
 
+    if not FLAGS.targeted and not FLAGS.use_keywords:
+        target_sentences = raw_sentences
+        target_probs = raw_probs
+        target_filename = attack_filename
 
     # run multiple attacks
     success = []
@@ -285,7 +290,10 @@ def main(_):
         adv, loss, loss1, loss2, _ = attack.attack(np.array([raw_image]), sess, inf_sess, model, inf_model, vocab, key_words, key_words_mask, j, try_index, 1, attack_const = attack_const)
       else:
         # exact attack
-        new_sentence = target_sentences[0]
+        if FLAGS.targeted:
+          new_sentence = target_sentences[0]
+        else:
+          new_sentence = raw_sentences[0]
         # new_sentence = "a black and white photo of a train on a track ."
         new_sentence = new_sentence.split()
         print("My target sentence:", new_sentence)
@@ -313,7 +321,14 @@ def main(_):
       if FLAGS.use_keywords:
         success += [set(words)<set(adv_sentence.split())]
       else:
-        success += [(adv_sentence==target_sentences[0])]
+        if FLAGS.targeted:
+          success += [(adv_sentence==target_sentences[0])]
+        else:
+          raw_split = [item.split() for item in raw_sentences]
+          nltk_BLEU = nltk.translate.bleu_score.sentence_bleu(raw_split, adv_sentence.split())
+          print("BLEU by nltk is:", nltk_BLEU)
+          success += [nltk_BLEU<0.5]
+
 
       print("Attack with this C is successful?", success[try_index])
 
@@ -398,8 +413,8 @@ def main(_):
     record = open(record_path + "record_"+str(FLAGS.offset)+".csv","a+")
     writer = csv.writer(record)
     if FLAGS.use_keywords:
-      row = (attack_filename, l2_distortion_log[i],linf_distortion_log[i],\
-        loss_log[i],loss1_log[i],loss2_log[i],C_val[i],success[i],)
+      row = (attack_filename, best_l2_distortion,best_linf_distortion,\
+        best_loss,best_loss1,best_loss2,final_C,str(final_success))
       row +=  tuple(noun_keywords)
       row += tuple(verb_keywords)
       row += tuple(adjective_keywords)
@@ -410,6 +425,7 @@ def main(_):
         adv_sentences[3],str(adv_probs[3]),adv_sentences[4],str(adv_probs[4]))
       writer.writerow(row)
     else:
+
       writer.writerow( (target_filename,attack_filename,\
         best_l2_distortion,best_linf_distortion,best_loss,best_loss1,best_loss2,\
         final_C,str(final_success),\
@@ -442,10 +458,10 @@ def save_fail_log(adv_log, loss_log, loss1_log, loss2_log, l2_distortion_log, li
     adv_sentences = []
     adv_probs = []
     if FLAGS.use_keywords:
-      noun = target_info['noun_keywords']
-      verb = target_info['verb_keywords']
-      adjective = target_info['adjective_keywords']
-      adverb = target_info['adverb_keywords']
+      noun_keywords = target_info['noun_keywords']
+      verb_keywords = target_info['verb_keywords']
+      adjective_keywords = target_info['adjective_keywords']
+      adverb_keywords = target_info['adverb_keywords']
       for indx, adv_caption in enumerate(adv_captions):
         adv_sentence = [vocab.id_to_word(w) for w in adv_caption.sentence[1:-1]]
         adv_sentence = " ".join(adv_sentence)
