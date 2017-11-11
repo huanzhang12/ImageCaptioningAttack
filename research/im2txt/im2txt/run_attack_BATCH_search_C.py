@@ -253,7 +253,7 @@ def main(_):
 
     # delete caption words from vocabulary
     if FLAGS.use_keywords:
-      flat_row_sentences = [item for sublist in raw_sentences for item in sublist]
+      flat_row_sentences = [item for sublist in raw_sentences for item in sublist.split()]
       new_noun = list(set(noun)-set(flat_row_sentences))
       new_verb = list(set(verb)-set(flat_row_sentences))
       new_adjective = list(set(adjective)-set(flat_row_sentences))
