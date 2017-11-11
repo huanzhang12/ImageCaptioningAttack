@@ -93,6 +93,7 @@ def main(_):
 
   tf.set_random_seed(FLAGS.seed)
   random.seed(FLAGS.seed)
+  np.random.seed(FLAGS.seed)
   
   record_path = os.getcwd() + FLAGS.result_directory
 
@@ -126,10 +127,6 @@ def main(_):
       adjective = adjective_file.read().split()
     with open('wordPOS/adverb.txt') as adverb_file:
       adverb = adverb_file.read().split()
-    random.shuffle(noun)
-    random.shuffle(verb)
-    random.shuffle(adjective)
-    random.shuffle(adverb)
   else:
     header = ("target filename","attack filename","L2 distortion","L_inf distortion","loss","loss1","loss2",\
       "optimal C","attack successful?","target caption 1","target caption 1 probability",\
@@ -202,14 +199,14 @@ def main(_):
 
   for j in range(FLAGS.exp_num):
     
-
+    '''
     if FLAGS.use_keywords:
       noun_keywords = [noun[item] for item in (np.array(range(POS_num[0]))+j*POS_num[0])%len(noun)]
       verb_keywords = [verb[item] for item in (np.array(range(POS_num[1]))+j*POS_num[1])%len(verb)]
       adjective_keywords = [adjective[item] for item in (np.array(range(POS_num[2]))+j*POS_num[2])%len(adjective)]
       adverb_keywords = [adverb[item] for item in (np.array(range(POS_num[3]))+j*POS_num[3])%len(adverb)]
       words = list(set(noun_keywords+verb_keywords+adjective_keywords+adverb_keywords))
-
+    '''
     if FLAGS.targeted and not FLAGS.use_keywords:
       target_filename = filenames[j+FLAGS.offset]
       print("Captions for target image %s:" % os.path.basename(target_filename))
@@ -253,6 +250,19 @@ def main(_):
       print("  %d) %s (p=%f)" % (1, raw_sentence, math.exp(raw_caption.logprob)))
       raw_sentences = raw_sentences + [raw_sentence]
       raw_probs = raw_probs + [math.exp(raw_caption.logprob)]
+
+    # delete caption words from vocabulary
+    if FLAGS.use_keywords:
+      flat_row_sentences = [item for sublist in raw_sentences for item in sublist]
+      new_noun = list(set(noun)-set(flat_row_sentences))
+      new_verb = list(set(verb)-set(flat_row_sentences))
+      new_adjective = list(set(adjective)-set(flat_row_sentences))
+      new_adverb = list(set(adverb)-set(flat_row_sentences))
+      noun_keywords = np.random.choice(new_noun,POS_num[0],replace=False)
+      verb_keywords = np.random.choice(new_verb,POS_num[1],replace=False)
+      adjective_keywords = np.random.choice(new_adjective,POS_num[2],replace=False)
+      adverb_keywords = np.random.choice(new_adverb,POS_num[3],replace=False)
+      words = list(set(noun_keywords+verb_keywords+adjective_keywords+adverb_keywords))
 
     if not FLAGS.targeted and not FLAGS.use_keywords:
         target_sentences = raw_sentences
