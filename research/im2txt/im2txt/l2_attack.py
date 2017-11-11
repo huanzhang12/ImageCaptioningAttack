@@ -406,7 +406,7 @@ class CarliniL2:
             attack_begin_time = time.time()
             # perform the attack 
             self.sess.run(self.train)
-            l, l1, l2, lps, grad_norm, softmax, nimg = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist, self.grad_norm, self.softmax, self.newimg])
+            l, l1, l2, lps, grad_norm, nimg = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist, self.grad_norm, self.newimg])
             print("[attack No.{}] [try No.{}] [C={:.5g}] iter = {}, time = {:.8f}, grad_norm = {:.5g}, loss = {:.5g}, loss1 = {:.5g}, loss2 = {:.5g}".format(attackid, try_id, CONST[0], iteration, train_timer, grad_norm, l, l1, l2))
             sys.stdout.flush()
             
