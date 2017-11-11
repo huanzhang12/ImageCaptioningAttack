@@ -356,7 +356,7 @@ class CarliniL2:
         batch_size = self.batch_size
 
         # convert to tanh-space
-        imgs = np.arctanh(imgs)
+        imgs = np.arctanh(imgs*0.9999)
 
         # set the lower and upper bounds accordingly
         lower_bound = np.zeros(batch_size)

@@ -70,6 +70,8 @@ tf.flags.DEFINE_integer("iters", 1000,
                         "number of iterations")
 tf.flags.DEFINE_integer("C_search_times", 5,
                         "try how many times for C")
+tf.flags.DEFINE_integer("infer_per_iter", 5,
+                        "number of iterations before inference again (valid for keywords attack)")
 tf.flags.DEFINE_string("caption_file","","human caption file")
 
 tf.flags.DEFINE_string("input_feed", "",
@@ -309,7 +311,7 @@ def main(_):
         print("My key words are: ", words)
         key_words_mask = np.append(np.ones(len(key_words)),np.zeros(max_caption_length-len(key_words)))
         key_words = key_words + [vocab.end_id]*(max_caption_length-len(key_words))
-        adv, loss, loss1, loss2, _ = attack.attack(np.array([raw_image]), sess, inf_sess, model, inf_model, vocab, key_words, key_words_mask, j, try_index, 1, attack_const = attack_const)
+        adv, loss, loss1, loss2, _ = attack.attack(np.array([raw_image]), sess, inf_sess, model, inf_model, vocab, key_words, key_words_mask, j, try_index, FLAGS.infer_per_iter, attack_const = attack_const)
       else:
         # exact attack
         if FLAGS.targeted:
