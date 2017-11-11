@@ -259,6 +259,7 @@ def main(_):
       new_verb = list(set(verb)-set(flat_row_sentences))
       new_adjective = list(set(adjective)-set(flat_row_sentences))
       new_adverb = list(set(adverb)-set(flat_row_sentences))
+<<<<<<< HEAD
       np.random.seed(FLAGS.seed)
       print("!!!!!!!!!!!!!!!!",np.random.choice([1,2,3,4,5],3,replace=False))
       noun_keywords = list(np.random.choice(new_noun,POS_num[0],replace=False))
@@ -267,6 +268,16 @@ def main(_):
       adverb_keywords = list(np.random.choice(new_adverb,POS_num[3],replace=False))
       words = noun_keywords+verb_keywords+adjective_keywords+adverb_keywords
       words = list(set(words))
+=======
+      noun_keywords = np.random.choice(new_noun,POS_num[0],replace=False)
+      verb_keywords = np.random.choice(new_verb,POS_num[1],replace=False)
+      adjective_keywords = np.random.choice(new_adjective,POS_num[2],replace=False)
+      adverb_keywords = np.random.choice(new_adverb,POS_num[3],replace=False)
+      if FLAGS.input_feed:
+        words = FLAGS.input_feed.split()
+      else:
+        words = list(set(noun_keywords+verb_keywords+adjective_keywords+adverb_keywords))
+>>>>>>> origin/master
 
     if not FLAGS.targeted and not FLAGS.use_keywords:
         target_sentences = raw_sentences
@@ -296,7 +307,6 @@ def main(_):
 
       if FLAGS.use_keywords:
         # keywords based attack
-        # words = FLAGS.input_feed.split()
         key_words = [vocab.word_to_id(word) for word in words]
         print("My key words are: ", words)
         key_words_mask = np.append(np.ones(len(key_words)),np.zeros(max_caption_length-len(key_words)))
