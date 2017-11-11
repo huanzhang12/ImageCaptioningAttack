@@ -220,14 +220,15 @@ class CarliniL2:
                 self.modified_logits = self.logits - 10000 * self.logits_mask
                 self.max_probs = tf.reduce_max(self.modified_logits, axis=1)
                 self.original_max_prob = tf.reduce_max(self.logits, axis=1)
-                self.diff_probs = tf.maximum(self.max_probs - self.cap_logits, -self.CONFIDENCE)
+                if self.TARGETED:
+                    self.diff_probs = tf.maximum(self.max_probs - self.cap_logits, -self.CONFIDENCE)
+                else:
+                    self.diff_probs = tf.maximum(self.cap_logits - self.max_probs, -self.CONFIDENCE)
                 print("max_probs shape:",self.max_probs.shape)
                 loss1 = tf.reduce_sum(self.diff_probs)
                 self.loss1 = tf.reduce_sum(self.const*loss1)
-                if self.TARGETED:
-                    self.loss = self.loss1
-                else:
-                    self.loss = - self.loss1
+                self.loss = self.loss1
+                
             else:
                 # use the output probability directly
                 if self.TARGETED:
@@ -404,7 +405,7 @@ class CarliniL2:
                     logits, modified_logits, cap_logits, diff_probs, original_max_prob= self.sess.run([self.logits, self.modified_logits, self.cap_logits, self.diff_probs, self.original_max_prob])
                     # print("keywords probs:", keywords_probs[:int(np.sum(key_words_mask))])
                     print("cap_logits:\n", cap_logits)
-                    print("diff_probsbs:\n", diff_probs)
+                    print("diff_probs:\n", diff_probs)
                     print("original_max_prob:\n", original_max_prob)
                     
 
@@ -434,7 +435,7 @@ class CarliniL2:
                         print("a valid attack is found, lp =", lps[0], ", best =", best_lp)
                         # break 
                 else:
-                    if self.TARGETED and l < best_loss:
+                    if l < best_loss:
                         best_img = np.array(nimg)
                         
                         best_loss1 = l1

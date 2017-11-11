@@ -324,11 +324,13 @@ def main(_):
         if FLAGS.targeted:
           success += [(adv_sentence==target_sentences[0])]
         else:
+          '''
           raw_split = [item.split() for item in raw_sentences]
           nltk_BLEU = nltk.translate.bleu_score.sentence_bleu(raw_split, adv_sentence.split())
           print("BLEU by nltk is:", nltk_BLEU)
           success += [nltk_BLEU<0.5]
-
+          '''
+          success += [False]
 
       print("Attack with this C is successful?", success[try_index])
 
@@ -355,20 +357,22 @@ def main(_):
             final_C = C_val[try_index]
         else:
           raise ValueError("unsupported distance metric:" + FLAGS.norm)
-
-      if try_index + 1 < FLAGS.C_search_times:
-        if success[try_index]:
-          if any(not _ for _ in success):
-            last_false = len(success) - success[::-1].index(False) - 1
-            C_val += [0.5 * (C_val[try_index] + C_val[last_false])]
+      if FLAGS.targeted:
+        if try_index + 1 < FLAGS.C_search_times:
+          if success[try_index]:
+            if any(not _ for _ in success):
+              last_false = len(success) - success[::-1].index(False) - 1
+              C_val += [0.5 * (C_val[try_index] + C_val[last_false])]
+            else:
+              C_val += [C_val[try_index] * 0.5]
           else:
-            C_val += [C_val[try_index] * 0.5]
-        else:
-          if any(_ for _ in success):
-            last_true = len(success) - success[::-1].index(True) - 1
-            C_val += [0.5 * (C_val[try_index] + C_val[last_true])]
-          else:
-            C_val += [C_val[try_index] * 10.0]
+            if any(_ for _ in success):
+              last_true = len(success) - success[::-1].index(True) - 1
+              C_val += [0.5 * (C_val[try_index] + C_val[last_true])]
+            else:
+              C_val += [C_val[try_index] * 10.0]
+      else:
+        C_val += [C_val[try_index] * 10.0]
 
     print("results of each attempt:", success)
     print("C values of each attempt:", C_val)
@@ -439,7 +443,7 @@ def main(_):
     print("****************************** END OF THIS ATTACK ***********************************")
 
   inf_sess.close()
-  if not FLAGS.use_keywords:
+  if not FLAGS.use_keywords and not FLAGS.targeted:
     target_sess.close()
   
   sess.close()
