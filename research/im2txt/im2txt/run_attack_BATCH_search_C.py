@@ -19,6 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from l2_attack import CarliniL2
 import math
+import nltk
 import os
 import csv
 import re
@@ -74,6 +75,9 @@ tf.flags.DEFINE_string("caption_file","","human caption file")
 tf.flags.DEFINE_string("input_feed", "",
                        "keywords or caption input")
 
+tf.flags.DEFINE_string("keywords_POS_num", "1 0 0 0",
+                       "number of keywords from different part-of-speech (POS), e.g. \"w x y z\" means w noun, x verb, y adjective and z adverb.")
+
 tf.logging.set_verbosity(tf.logging.INFO)
 
 def show(img, path, name = "output.png"):
@@ -96,27 +100,47 @@ def main(_):
     caption_file = json.load(data_file)
   caption_info = caption_file['annotations']
 
-  print("using" + FLAGS.norm +"for attack")
-
-  header = ("target filename","attack filename",\
-    "L2 distortion","L_inf distortion","loss","loss1","loss2",\
-    "optimal C","attack successful?",\
-    "target caption 1","target caption 1 probability",\
-    "target caption 2","target caption 2 probability",\
-    "target caption 3","target caption 3 probability",\
-    "target caption 4","target caption 4 probability",\
-    "target caption 5","target caption 5 probability",\
-    "human caption",\
-    "caption before attack 1","caption before attack 1 probability",\
-    "caption before attack 2","caption before attack 2 probability",\
-    "caption before attack 3","caption before attack 3 probability",\
-    "caption before attack 4","caption before attack 4 probability",\
-    "caption before attack 5","caption before attack 5 probability",\
-    "caption after attack 1","caption after attack 1 probability",\
-    "caption after attack 2","caption after attack 2 probability",\
-    "caption after attack 3","caption after attack 3 probability",\
-    "caption after attack 4","caption after attack 4 probability",\
-    "caption after attack 5","caption after attack 5 probability")
+  print("using " + FLAGS.norm +" for attack")
+  if FLAGS.use_keywords:
+    POS_num = [int(item) for item in FLAGS.keywords_POS_num.split()]
+    if len(POS_num)!=4:
+      raise ValueError("please specify number of keywords from each POS")
+    header = ("attack filename",\
+      "L2 distortion","L_inf distortion","loss","loss1","loss2",\
+      "optimal C","attack successful?",)
+    header += tuple(["noun"] * POS_num[0])
+    header += tuple(["verb"] * POS_num[1])
+    header += tuple(["adjective"] * POS_num[2])
+    header += tuple(["adverb"] * POS_num[3])
+    header += ("human caption",\
+      "caption before attack 1","caption before attack 1 probability","caption before attack 2","caption before attack 2 probability",\
+      "caption before attack 3","caption before attack 3 probability","caption before attack 4","caption before attack 4 probability",\
+      "caption before attack 5","caption before attack 5 probability","caption after attack 1","caption after attack 1 probability",\
+      "caption after attack 2","caption after attack 2 probability","caption after attack 3","caption after attack 3 probability",\
+      "caption after attack 4","caption after attack 4 probability","caption after attack 5","caption after attack 5 probability")
+    with open('wordPOS/noun.txt') as noun_file:
+      noun = noun_file.read().split()
+    with open('wordPOS/verb.txt') as verb_file:
+      verb = verb_file.read().split()
+    with open('wordPOS/adjective.txt') as adjective_file:
+      adjective = adjective_file.read().split()
+    with open('wordPOS/adverb.txt') as adverb_file:
+      adverb = adverb_file.read().split()
+    random.shuffle(noun)
+    random.shuffle(verb)
+    random.shuffle(adjective)
+    random.shuffle(adverb)
+  else:
+    header = ("target filename","attack filename","L2 distortion","L_inf distortion","loss","loss1","loss2",\
+      "optimal C","attack successful?","target caption 1","target caption 1 probability",\
+      "target caption 2","target caption 2 probability","target caption 3","target caption 3 probability",\
+      "target caption 4","target caption 4 probability","target caption 5","target caption 5 probability",\
+      "human caption",\
+      "caption before attack 1","caption before attack 1 probability","caption before attack 2","caption before attack 2 probability",\
+      "caption before attack 3","caption before attack 3 probability","caption before attack 4","caption before attack 4 probability",\
+      "caption before attack 5","caption before attack 5 probability","caption after attack 1","caption after attack 1 probability",\
+      "caption after attack 2","caption after attack 2 probability","caption after attack 3","caption after attack 3 probability",\
+      "caption after attack 4","caption after attack 4 probability","caption after attack 5","caption after attack 5 probability")
   record = open(record_path + "record_"+str(FLAGS.offset)+".csv","a+")
   writer = csv.writer(record)
   writer.writerow(header)
@@ -144,16 +168,17 @@ def main(_):
   inf_restore_fn(inf_sess)
   inf_generator = caption_generator.CaptionGenerator(inf_model, vocab, beam_size=5)
 
-  target_g = tf.Graph()
-  with target_g.as_default():
-    target_model = inference_wrapper.InferenceWrapper()
-    target_restore_fn = target_model.build_graph_from_config(configuration.ModelConfig(),FLAGS.checkpoint_path)
-    target_image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
-    target_preprocessor = target_model.model.process_image(target_image_placeholder)
-  target_g.finalize()
-  target_sess = tf.Session(graph=target_g, config=config)
-  target_restore_fn(target_sess)
-  target_generator = caption_generator.CaptionGenerator(target_model, vocab, beam_size=5)
+  if FLAGS.targeted and not FLAGS.use_keywords:
+    target_g = tf.Graph()
+    with target_g.as_default():
+      target_model = inference_wrapper.InferenceWrapper()
+      target_restore_fn = target_model.build_graph_from_config(configuration.ModelConfig(),FLAGS.checkpoint_path)
+      target_image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
+      target_preprocessor = target_model.model.process_image(target_image_placeholder)
+    target_g.finalize()
+    target_sess = tf.Session(graph=target_g, config=config)
+    target_restore_fn(target_sess)
+    target_generator = caption_generator.CaptionGenerator(target_model, vocab, beam_size=5)
 
   
   attack_graph = tf.Graph()
@@ -167,43 +192,39 @@ def main(_):
     image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
     preprocessor = model.model.process_image(image_placeholder)
   
-  '''
-  attack_graph = tf.Graph()
-  model = attack_wrapper.AttackWrapper()
-  sess = tf.Session(config=config)
-  # build the attacker graph
-  print("target:",FLAGS.targeted)
-  # compute graph for preprocessing
-  '''
-  
-  
 
   # get all the files in the directory
   image_directory = FLAGS.image_directory
   filenames = [file for file in os.listdir(image_directory)]
   filenames.sort()
   random.shuffle(filenames)
+
+
   for j in range(FLAGS.exp_num):
     
-    # indices = random.sample(range(0, len(filenames)), 2)
 
-    # target_filename = filenames[indices[0]]
-    
-    target_filename = filenames[j+FLAGS.offset]
-    print("Captions for target image %s:" % os.path.basename(target_filename))
-    with tf.gfile.GFile(image_directory+target_filename, "rb") as f:
-      target_image = f.read()
-      target_image = target_sess.run(target_preprocessor, {target_image_placeholder: target_image})
-    target_captions = target_generator.beam_search(target_sess, target_image)
-    target_sentences = []
-    target_probs = []
-    for indx, target_caption in enumerate(target_captions):
-      target_sentence = [vocab.id_to_word(w) for w in target_caption.sentence[1:-1]]
-      target_sentence = " ".join(target_sentence)
-      print("  %d) %s (p=%f)" % (1, target_sentence, math.exp(target_caption.logprob)))
-      target_sentences = target_sentences + [target_sentence]
-      target_probs = target_probs + [math.exp(target_caption.logprob)]
-    # record.write("\ntarget caption:"+target_sentence)
+    if FLAGS.use_keywords:
+      noun_keywords = [noun[item] for item in (np.array(range(POS_num[0]))+j*POS_num[0])%len(noun)]
+      verb_keywords = [verb[item] for item in (np.array(range(POS_num[1]))+j*POS_num[1])%len(verb)]
+      adjective_keywords = [adjective[item] for item in (np.array(range(POS_num[2]))+j*POS_num[2])%len(adjective)]
+      adverb_keywords = [adverb[item] for item in (np.array(range(POS_num[3]))+j*POS_num[3])%len(adverb)]
+      words = list(set(noun_keywords+verb_keywords+adjective_keywords+adverb_keywords))
+
+    if FLAGS.targeted and not FLAGS.use_keywords:
+      target_filename = filenames[j+FLAGS.offset]
+      print("Captions for target image %s:" % os.path.basename(target_filename))
+      with tf.gfile.GFile(image_directory+target_filename, "rb") as f:
+        target_image = f.read()
+        target_image = target_sess.run(target_preprocessor, {target_image_placeholder: target_image})
+      target_captions = target_generator.beam_search(target_sess, target_image)
+      target_sentences = []
+      target_probs = []
+      for indx, target_caption in enumerate(target_captions):
+        target_sentence = [vocab.id_to_word(w) for w in target_caption.sentence[1:-1]]
+        target_sentence = " ".join(target_sentence)
+        print("  %d) %s (p=%f)" % (1, target_sentence, math.exp(target_caption.logprob)))
+        target_sentences = target_sentences + [target_sentence]
+        target_probs = target_probs + [math.exp(target_caption.logprob)]
 
 
     attack_filename = filenames[len(filenames)-1-j-FLAGS.offset]
@@ -233,6 +254,10 @@ def main(_):
       raw_sentences = raw_sentences + [raw_sentence]
       raw_probs = raw_probs + [math.exp(raw_caption.logprob)]
 
+    if not FLAGS.targeted and not FLAGS.use_keywords:
+        target_sentences = raw_sentences
+        target_probs = raw_probs
+        target_filename = attack_filename
 
     # run multiple attacks
     success = []
@@ -257,15 +282,18 @@ def main(_):
 
       if FLAGS.use_keywords:
         # keywords based attack
-        words = FLAGS.input_feed.split()
+        # words = FLAGS.input_feed.split()
         key_words = [vocab.word_to_id(word) for word in words]
-        print(key_words)
+        print("My key words are: ", words)
         key_words_mask = np.append(np.ones(len(key_words)),np.zeros(max_caption_length-len(key_words)))
         key_words = key_words + [vocab.end_id]*(max_caption_length-len(key_words))
         adv, loss, loss1, loss2, _ = attack.attack(np.array([raw_image]), sess, inf_sess, model, inf_model, vocab, key_words, key_words_mask, j, try_index, 1, attack_const = attack_const)
       else:
         # exact attack
-        new_sentence = target_sentences[0]
+        if FLAGS.targeted:
+          new_sentence = target_sentences[0]
+        else:
+          new_sentence = raw_sentences[0]
         # new_sentence = "a black and white photo of a train on a track ."
         new_sentence = new_sentence.split()
         print("My target sentence:", new_sentence)
@@ -289,7 +317,21 @@ def main(_):
       adv_sentence = [vocab.id_to_word(w) for w in adv_caption.sentence[1:-1]]
       adv_sentence = " ".join(adv_sentence)
       print("  %d) %s (p=%f)" % (1, adv_sentence, math.exp(adv_caption.logprob)))
-      success += [(adv_sentence==target_sentences[0])]
+
+      if FLAGS.use_keywords:
+        success += [set(words)<set(adv_sentence.split())]
+      else:
+        if FLAGS.targeted:
+          success += [(adv_sentence==target_sentences[0])]
+        else:
+          '''
+          raw_split = [item.split() for item in raw_sentences]
+          nltk_BLEU = nltk.translate.bleu_score.sentence_bleu(raw_split, adv_sentence.split())
+          print("BLEU by nltk is:", nltk_BLEU)
+          success += [nltk_BLEU<0.5]
+          '''
+          success += [False]
+
       print("Attack with this C is successful?", success[try_index])
 
       l2_distortion = np.sum((adv - raw_image)**2)**.5
@@ -315,20 +357,22 @@ def main(_):
             final_C = C_val[try_index]
         else:
           raise ValueError("unsupported distance metric:" + FLAGS.norm)
-
-      if try_index + 1 < FLAGS.C_search_times:
-        if success[try_index]:
-          if any(not _ for _ in success):
-            last_false = len(success) - success[::-1].index(False) - 1
-            C_val += [0.5 * (C_val[try_index] + C_val[last_false])]
+      if FLAGS.targeted:
+        if try_index + 1 < FLAGS.C_search_times:
+          if success[try_index]:
+            if any(not _ for _ in success):
+              last_false = len(success) - success[::-1].index(False) - 1
+              C_val += [0.5 * (C_val[try_index] + C_val[last_false])]
+            else:
+              C_val += [C_val[try_index] * 0.5]
           else:
-            C_val += [C_val[try_index] * 0.5]
-        else:
-          if any(_ for _ in success):
-            last_true = len(success) - success[::-1].index(True) - 1
-            C_val += [0.5 * (C_val[try_index] + C_val[last_true])]
-          else:
-            C_val += [C_val[try_index] * 10.0]
+            if any(_ for _ in success):
+              last_true = len(success) - success[::-1].index(True) - 1
+              C_val += [0.5 * (C_val[try_index] + C_val[last_true])]
+            else:
+              C_val += [C_val[try_index] * 10.0]
+      else:
+        C_val += [C_val[try_index] * 10.0]
 
     print("results of each attempt:", success)
     print("C values of each attempt:", C_val)
@@ -340,8 +384,12 @@ def main(_):
       final_C = C_val[-1]
       best_adv = adv
       best_loss, best_loss1, best_loss2 = loss, loss1, loss2
-      save_fail_log(adv_log, loss_log, loss1_log, loss2_log, l2_distortion_log, linf_distortion_log, success, C_val, record_path, attack_filename, target_filename, raw_image, human_cap,\
-       target_sentences, target_probs, raw_sentences, raw_probs, inf_sess, inf_generator, vocab)
+      if FLAGS.use_keywords:
+        target_info = {'noun_keywords': noun_keywords, 'verb_keywords': verb_keywords, 'adjective_keywords':adjective_keywords, 'adverb_keywords':adverb_keywords}
+      else:
+        target_info = {'target_filename':target_filename, "target_sentences":target_sentences,"target_probs":target_probs}
+      save_fail_log(adv_log, loss_log, loss1_log, loss2_log, l2_distortion_log, linf_distortion_log, success, C_val, record_path, attack_filename, raw_image, human_cap,\
+        raw_sentences, raw_probs, inf_sess, inf_generator, vocab, target_info)
 
     
     show(best_adv, record_path, "adversarial_"+attack_filename.replace(".jpg",".png"))
@@ -368,35 +416,42 @@ def main(_):
 
     record = open(record_path + "record_"+str(FLAGS.offset)+".csv","a+")
     writer = csv.writer(record)
-    writer.writerow( (target_filename,attack_filename,\
-      best_l2_distortion,best_linf_distortion,best_loss,best_loss1,best_loss2,\
-      final_C,str(final_success),\
-      target_sentences[0],str(target_probs[0]),\
-      target_sentences[1],str(target_probs[1]),\
-      target_sentences[2],str(target_probs[2]),\
-      target_sentences[3],str(target_probs[3]),\
-      target_sentences[4],str(target_probs[4]),\
-      human_cap,\
-      raw_sentences[0],str(raw_probs[0]),\
-      raw_sentences[1],str(raw_probs[1]),\
-      raw_sentences[2],str(raw_probs[2]),\
-      raw_sentences[3],str(raw_probs[3]),\
-      raw_sentences[4],str(raw_probs[4]),\
-      adv_sentences[0],str(adv_probs[0]),\
-      adv_sentences[1],str(adv_probs[1]),\
-      adv_sentences[2],str(adv_probs[2]),\
-      adv_sentences[3],str(adv_probs[3]),\
-      adv_sentences[4],str(adv_probs[4])))
+    if FLAGS.use_keywords:
+      row = (attack_filename, best_l2_distortion,best_linf_distortion,\
+        best_loss,best_loss1,best_loss2,final_C,str(final_success))
+      row +=  tuple(noun_keywords)
+      row += tuple(verb_keywords)
+      row += tuple(adjective_keywords)
+      row += tuple(adverb_keywords)
+      row += (human_cap,raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),\
+        raw_sentences[3],str(raw_probs[3]),raw_sentences[4],str(raw_probs[4]),\
+        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]),\
+        adv_sentences[3],str(adv_probs[3]),adv_sentences[4],str(adv_probs[4]))
+      writer.writerow(row)
+    else:
+
+      writer.writerow( (target_filename,attack_filename,\
+        best_l2_distortion,best_linf_distortion,best_loss,best_loss1,best_loss2,\
+        final_C,str(final_success),\
+        target_sentences[0],str(target_probs[0]),target_sentences[1],str(target_probs[1]),target_sentences[2],str(target_probs[2]),\
+        target_sentences[3],str(target_probs[3]),target_sentences[4],str(target_probs[4]),human_cap,\
+        raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),\
+        raw_sentences[3],str(raw_probs[3]),raw_sentences[4],str(raw_probs[4]),\
+        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]),\
+        adv_sentences[3],str(adv_probs[3]),adv_sentences[4],str(adv_probs[4])))
     record.close()
     print("****************************** END OF THIS ATTACK ***********************************")
 
   inf_sess.close()
-  target_sess.close()
+  if not FLAGS.use_keywords and not FLAGS.targeted:
+    target_sess.close()
   
   sess.close()
 
-def save_fail_log(adv_log, loss_log, loss1_log, loss2_log, l2_distortion_log, linf_distortion_log, success, C_val, record_path, attack_filename, target_filename, raw_image,human_cap,\
- target_sentences, target_probs, raw_sentences, raw_probs, inf_sess,inf_generator,vocab):
+
+
+def save_fail_log(adv_log, loss_log, loss1_log, loss2_log, l2_distortion_log, linf_distortion_log, success, C_val, record_path, attack_filename, raw_image,human_cap,\
+  raw_sentences, raw_probs, inf_sess,inf_generator, vocab, target_info): 
   for i in range(len(adv_log)):
     show(adv_log[i], record_path+"fail_log/", "fail_adversarial_C_"+str(C_val[i])+attack_filename.replace(".jpg",".png"))
     show(adv_log[i] - raw_image, record_path+"fail_log/", "fail_diff_C_"+str(C_val[i])+attack_filename.replace(".jpg",".png"))
@@ -406,31 +461,48 @@ def save_fail_log(adv_log, loss_log, loss1_log, loss2_log, l2_distortion_log, li
     adv_captions = inf_generator.beam_search(inf_sess, np.squeeze(adv_log[i]))
     adv_sentences = []
     adv_probs = []
-
-    for indx, adv_caption in enumerate(adv_captions):
-      adv_sentence = [vocab.id_to_word(w) for w in adv_caption.sentence[1:-1]]
-      adv_sentence = " ".join(adv_sentence)
-      adv_sentences = adv_sentences + [adv_sentence]
-      adv_probs = adv_probs + [math.exp(adv_caption.logprob)]
-    fail_log_writer.writerow( (target_filename,attack_filename,\
-      l2_distortion_log[i],linf_distortion_log[i],loss_log[i],loss1_log[i],loss2_log[i],\
-      C_val[i],success[i],\
-      target_sentences[0],str(target_probs[0]),\
-      target_sentences[1],str(target_probs[1]),\
-      target_sentences[2],str(target_probs[2]),\
-      target_sentences[3],str(target_probs[3]),\
-      target_sentences[4],str(target_probs[4]),\
-      human_cap,\
-      raw_sentences[0],str(raw_probs[0]),\
-      raw_sentences[1],str(raw_probs[1]),\
-      raw_sentences[2],str(raw_probs[2]),\
-      raw_sentences[3],str(raw_probs[3]),\
-      raw_sentences[4],str(raw_probs[4]),\
-      adv_sentences[0],str(adv_probs[0]),\
-      adv_sentences[1],str(adv_probs[1]),\
-      adv_sentences[2],str(adv_probs[2]),\
-      adv_sentences[3],str(adv_probs[3]),\
-      adv_sentences[4],str(adv_probs[4])))
+    if FLAGS.use_keywords:
+      noun_keywords = target_info['noun_keywords']
+      verb_keywords = target_info['verb_keywords']
+      adjective_keywords = target_info['adjective_keywords']
+      adverb_keywords = target_info['adverb_keywords']
+      for indx, adv_caption in enumerate(adv_captions):
+        adv_sentence = [vocab.id_to_word(w) for w in adv_caption.sentence[1:-1]]
+        adv_sentence = " ".join(adv_sentence)
+        adv_sentences = adv_sentences + [adv_sentence]
+        adv_probs = adv_probs + [math.exp(adv_caption.logprob)]
+      row = (attack_filename, l2_distortion_log[i],linf_distortion_log[i],\
+        loss_log[i],loss1_log[i],loss2_log[i],C_val[i],success[i],)
+      row +=  tuple(noun_keywords)
+      row += tuple(verb_keywords)
+      row += tuple(adjective_keywords)
+      row += tuple(adverb_keywords)
+      row += (human_cap,\
+        raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),\
+        raw_sentences[3],str(raw_probs[3]),raw_sentences[4],str(raw_probs[4]),adv_sentences[0],str(adv_probs[0]),\
+        adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]),adv_sentences[3],str(adv_probs[3]),\
+        adv_sentences[4],str(adv_probs[4]))
+      fail_log_writer.writerow(row)
+    else:
+      target_sentences = target_info['target_sentences']
+      target_filename = target_info['target_filename']
+      target_probs = target_info['target_probs']
+      for indx, adv_caption in enumerate(adv_captions):
+        adv_sentence = [vocab.id_to_word(w) for w in adv_caption.sentence[1:-1]]
+        adv_sentence = " ".join(adv_sentence)
+        adv_sentences = adv_sentences + [adv_sentence]
+        adv_probs = adv_probs + [math.exp(adv_caption.logprob)]
+      fail_log_writer.writerow( (target_filename,attack_filename,\
+        l2_distortion_log[i],linf_distortion_log[i],loss_log[i],loss1_log[i],loss2_log[i],\
+        C_val[i],success[i],\
+        target_sentences[0],str(target_probs[0]),target_sentences[1],str(target_probs[1]),\
+        target_sentences[2],str(target_probs[2]),target_sentences[3],str(target_probs[3]),\
+        target_sentences[4],str(target_probs[4]),\
+        human_cap,\
+        raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),\
+        raw_sentences[3],str(raw_probs[3]),raw_sentences[4],str(raw_probs[4]),adv_sentences[0],str(adv_probs[0]),\
+        adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]),adv_sentences[3],str(adv_probs[3]),\
+        adv_sentences[4],str(adv_probs[4])))
     fail_log.close()
 
 if __name__ == "__main__":

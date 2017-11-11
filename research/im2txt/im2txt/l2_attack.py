@@ -253,14 +253,15 @@ class CarliniL2:
                 self.modified_logits = self.logits - 10000 * self.logits_mask
                 self.max_probs = tf.reduce_max(self.modified_logits, axis=1)
                 self.original_max_prob = tf.reduce_max(self.logits, axis=1)
-                self.diff_probs = tf.maximum(self.max_probs - self.cap_logits, -self.CONFIDENCE)
+                if self.TARGETED:
+                    self.diff_probs = tf.maximum(self.max_probs - self.cap_logits, -self.CONFIDENCE)
+                else:
+                    self.diff_probs = tf.maximum(self.cap_logits - self.max_probs, -self.CONFIDENCE)
                 print("max_probs shape:",self.max_probs.shape)
                 loss1 = tf.reduce_sum(self.diff_probs)
                 self.loss1 = tf.reduce_sum(self.const*loss1)
-                if self.TARGETED:
-                    self.loss = self.loss1
-                else:
-                    self.loss = - self.loss1
+                self.loss = self.loss1
+                
             else:
                 # use the output probability directly
                 if self.TARGETED:
@@ -397,6 +398,9 @@ class CarliniL2:
         train_timer = 0.0
         best_lp = 1e10
         best_img = None
+        best_loss1 = 1e10
+        best_loss2 = 1e10
+        best_loss = 1e10
         for iteration in range(self.MAX_ITERATIONS):
             attack_begin_time = time.time()
             # print out the losses every 10%
@@ -447,7 +451,7 @@ class CarliniL2:
                     logits, modified_logits, cap_logits, diff_probs, original_max_prob= self.sess.run([self.logits, self.modified_logits, self.cap_logits, self.diff_probs, self.original_max_prob])
                     # print("keywords probs:", keywords_probs[:int(np.sum(key_words_mask))])
                     print("cap_logits:\n", cap_logits)
-                    print("diff_probsbs:\n", diff_probs)
+                    print("diff_probs:\n", diff_probs)
                     print("original_max_prob:\n", original_max_prob)
                     
 
@@ -469,21 +473,20 @@ class CarliniL2:
                 true_key_words = key_words[:int(np.sum(key_words_mask))]
                 if self.use_keywords:
                     if self.TARGETED and set(true_key_words).issubset(infer_caption):
-                        if lps[0] < best_lp:
-                            best_lp = lps[0]
+                        if l < best_loss:
                             best_img = np.array(nimg)
+                            best_loss = l
                             best_loss1 = l1
                             best_loss2 = l2
-                            best_loss = l
                         print("<<<<<<<<<<<<<< a valid attack is found, lp =", lps[0], ", best =", best_lp, ">>>>>>>>>>>>>>>>>>>")
-                        break
                 else:
-                    if self.TARGETED and l < best_lp:
-                        best_lp = l
+                    if l < best_loss:
                         best_img = np.array(nimg)
+                        
                         best_loss1 = l1
                         best_loss2 = l2
                         best_loss = l
+                        
                     
                 # print("max likelihood id array found:", infer_caption)
                 true_infer_cap_len = len(infer_caption)
