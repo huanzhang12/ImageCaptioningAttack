@@ -28,6 +28,7 @@ if [ "$(arch)" = "x86_64" ]; then
     source activate tensorflow
 fi
 if [ "$(arch)" = "ppc64le" ]; then
+    source ${HOME}/.bashrc
     source activate huanpy36
 fi
 

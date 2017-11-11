@@ -58,7 +58,7 @@ tf.flags.DEFINE_string("norm", "inf",
                         "norm to use: inf or l2")
 tf.flags.DEFINE_integer("exp_num", 10,
                         "number of experiments")
-tf.flags.DEFINE_string("result_directory", "/experiments_records/",
+tf.flags.DEFINE_string("result_directory", "./experiments_records/",
                         "the directory to save results")
 tf.flags.DEFINE_integer("seed", 8,
                         "random seed")
@@ -99,6 +99,9 @@ def main(_):
   
 
   record_path = FLAGS.result_directory
+  # we should use os.path.join!
+  if record_path[-1] != "/":
+      record_path += "/"
 
   with open(FLAGS.caption_file) as data_file:
     caption_file = json.load(data_file)
