@@ -98,7 +98,7 @@ def main(_):
   
   
 
-  record_path = os.getcwd() + FLAGS.result_directory
+  record_path = FLAGS.result_directory
 
   with open(FLAGS.caption_file) as data_file:
     caption_file = json.load(data_file)
@@ -141,12 +141,13 @@ def main(_):
       "caption before attack 5","caption before attack 5 probability","caption after attack 1","caption after attack 1 probability",\
       "caption after attack 2","caption after attack 2 probability","caption after attack 3","caption after attack 3 probability",\
       "caption after attack 4","caption after attack 4 probability","caption after attack 5","caption after attack 5 probability")
-  record = open(record_path + "record_"+str(FLAGS.offset)+".csv","a+")
+  os.system("mkdir -p {}".format(os.path.join(record_path, "fail_log")))
+  record = open(os.path.join(record_path, "record_"+str(FLAGS.offset)+".csv"),"a+")
   writer = csv.writer(record)
   writer.writerow(header)
   record.close()
 
-  fail_log = open(record_path + "fail_log/record_"+str(FLAGS.offset)+".csv","a+")
+  fail_log = open(os.path.join(record_path, "fail_log/record_"+str(FLAGS.offset)+".csv"),"a+")
   fail_log_writer = csv.writer(fail_log)
   fail_log_writer.writerow(header)
   fail_log.close()
