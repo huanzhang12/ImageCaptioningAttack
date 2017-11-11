@@ -311,6 +311,7 @@ class CarliniL2:
     def adam_optimizer_tf(self, loss, var):
         with tf.name_scope("adam_optimier"):
             self.grad = tf.gradients(loss, var)[0]
+            self.grad_norm = tf.norm(self.grad)
             # self.noise = tf.random_normal(self.grad.shape, 0.0, 1.0)
             self.noise = 0
             self.beta1 = tf.constant(0.9)
@@ -373,7 +374,7 @@ class CarliniL2:
         # set the variables so that we don't have to send them over again
         if self.use_keywords:
             # TODO: use inference mode here
-            generator = caption_generator.CaptionGenerator(inf_model, vocab)
+            generator = caption_generator.CaptionGenerator(inf_model, vocab, beam_size = 5)
             captions = generator.beam_search(inf_sess, imgs[0])
             infer_caption = captions[0].sentence
             # infer_caption = [1, 0, 11, 46, 0, 195, 4, 33, 5, 0, 155, 3, 2]
@@ -403,29 +404,12 @@ class CarliniL2:
         best_loss = 1e10
         for iteration in range(self.MAX_ITERATIONS):
             attack_begin_time = time.time()
-            # print out the losses every 10%
-            # if iteration%(self.MAX_ITERATIONS//self.print_every) == 0:
-            if True:
-                # print(iteration,self.sess.run((self.loss,self.real,self.other,self.loss1,self.loss2)))
-                # grad = self.sess.run(self.grad_op)
-                # old_modifier = self.sess.run(self.modifier)
-                # np.save('white_iter_{}'.format(iteration), modifier)
-                loss, grad, loss1, loss2 = self.sess.run((self.loss,self.grad,self.loss1,self.loss2))
-                print("[attack No.{}] [try No.{}] [C={:.5g}] iter = {}, time = {:.8f}, grad_norm = {:.5g}, loss = {:.5g}, loss1 = {:.5g}, loss2 = {:.5g}".format(attackid, try_id, CONST[0], iteration, train_timer, np.linalg.norm(grad), loss, loss1, loss2))
-                sys.stdout.flush()
-
-            attack_begin_time = time.time()
             # perform the attack 
-            _, l, l1, l2, lps, scores, softmax, nimg = self.sess.run([self.train, self.loss, self.loss1, self.loss2, self.lpdist, self.output, self.softmax, self.newimg])
+            self.sess.run(self.train)
+            l, l1, l2, lps, grad_norm, softmax, nimg = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist, self.grad_norm, self.softmax, self.newimg])
+            print("[attack No.{}] [try No.{}] [C={:.5g}] iter = {}, time = {:.8f}, grad_norm = {:.5g}, loss = {:.5g}, loss1 = {:.5g}, loss2 = {:.5g}".format(attackid, try_id, CONST[0], iteration, train_timer, grad_norm, l, l1, l2))
+            sys.stdout.flush()
             
-            '''
-            # add noise if gradient is zero
-            if np.linalg.norm(grad) == 0:
-                add_noise = self.modifier.assign(tf.random_normal(shape=tf.shape(self.modifier), mean=0.0, stddev=0.1, dtype=tf.float32))
-                sess.run(add_noise)
-                print("noise added")
-            '''
-
             # update softmax using the latest variable
             if self.use_logits:
                 if self.use_keywords:
@@ -468,16 +452,17 @@ class CarliniL2:
                     print("current sentence:")
                     for new_caption in captions:
                         sentence = [vocab.id_to_word(w) for w in new_caption.sentence]
-                        print(sentence)
+                        print(sentence, "p =", np.exp(new_caption.logprob))
 
                 true_key_words = key_words[:int(np.sum(key_words_mask))]
                 if self.use_keywords:
                     if self.TARGETED and set(true_key_words).issubset(infer_caption):
-                        if l < best_loss:
+                        if lps[0] < best_lp:
                             best_img = np.array(nimg)
                             best_loss = l
                             best_loss1 = l1
                             best_loss2 = l2
+                            best_lp = lps[0]
                         print("<<<<<<<<<<<<<< a valid attack is found, lp =", lps[0], ", best =", best_lp, ">>>>>>>>>>>>>>>>>>>")
                 else:
                     if l < best_loss:
@@ -511,6 +496,7 @@ class CarliniL2:
                 prev = l
             train_timer += time.time() - attack_begin_time
 
+        # no successful attack is found ,return the last iteration image
         if best_img is None:
             return np.array(nimg), best_loss, best_loss1, best_loss2, CONST
         else:
