@@ -76,9 +76,13 @@ tf.flags.DEFINE_string("caption_file","","human caption file")
 
 tf.flags.DEFINE_string("input_feed", "",
                        "keywords or caption input")
-
+'''
 tf.flags.DEFINE_string("keywords_POS_num", "1 0 0 0",
                        "number of keywords from different part-of-speech (POS), e.g. \"w x y z\" means w noun, x verb, y adjective and z adverb.")
+'''
+
+tf.flags.DEFINE_integer("keywords_num", 1,
+                        "number of keywords")
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -95,7 +99,7 @@ def main(_):
 
   tf.set_random_seed(FLAGS.seed)
   random.seed(FLAGS.seed)
-  
+  np.random.seed(FLAGS.seed)
   
 
   record_path = FLAGS.result_directory
@@ -109,16 +113,11 @@ def main(_):
 
   print("using " + FLAGS.norm +" for attack")
   if FLAGS.use_keywords:
-    POS_num = [int(item) for item in FLAGS.keywords_POS_num.split()]
-    if len(POS_num)!=4:
-      raise ValueError("please specify number of keywords from each POS")
+    keywords_num = FLAGS.keywords_num
     header = ("attack filename",\
       "L2 distortion","L_inf distortion","loss","loss1","loss2",\
       "optimal C","attack successful?",)
-    header += tuple(["noun"] * POS_num[0])
-    header += tuple(["verb"] * POS_num[1])
-    header += tuple(["adjective"] * POS_num[2])
-    header += tuple(["adverb"] * POS_num[3])
+    header += tuple(["keywords"] * keywords_num)
     header += ("human caption",\
       "caption before attack 1","caption before attack 1 probability","caption before attack 2","caption before attack 2 probability",\
       "caption before attack 3","caption before attack 3 probability","caption before attack 4","caption before attack 4 probability",\
@@ -133,6 +132,7 @@ def main(_):
       adjective = adjective_file.read().split()
     with open('wordPOS/adverb.txt') as adverb_file:
       adverb = adverb_file.read().split()
+    good_words = set(noun+verb+adjective+adverb)
   else:
     header = ("target filename","attack filename","L2 distortion","L_inf distortion","loss","loss1","loss2",\
       "optimal C","attack successful?","target caption 1","target caption 1 probability",\
@@ -172,7 +172,7 @@ def main(_):
   inf_restore_fn(inf_sess)
   inf_generator = caption_generator.CaptionGenerator(inf_model, vocab, beam_size=5)
 
-  if FLAGS.targeted and not FLAGS.use_keywords:
+  if FLAGS.targeted or FLAGS.use_keywords:
     target_g = tf.Graph()
     with target_g.as_default():
       target_model = inference_wrapper.InferenceWrapper()
@@ -205,16 +205,8 @@ def main(_):
 
 
   for j in range(FLAGS.exp_num):
-    
-    '''
-    if FLAGS.use_keywords:
-      noun_keywords = [noun[item] for item in (np.array(range(POS_num[0]))+j*POS_num[0])%len(noun)]
-      verb_keywords = [verb[item] for item in (np.array(range(POS_num[1]))+j*POS_num[1])%len(verb)]
-      adjective_keywords = [adjective[item] for item in (np.array(range(POS_num[2]))+j*POS_num[2])%len(adjective)]
-      adverb_keywords = [adverb[item] for item in (np.array(range(POS_num[3]))+j*POS_num[3])%len(adverb)]
-      words = list(set(noun_keywords+verb_keywords+adjective_keywords+adverb_keywords))
-    '''
-    if FLAGS.targeted and not FLAGS.use_keywords:
+
+    if FLAGS.targeted or FLAGS.use_keywords:
       target_filename = filenames[j+FLAGS.offset]
       print("Captions for target image %s:" % os.path.basename(target_filename))
       with tf.gfile.GFile(image_directory+target_filename, "rb") as f:
@@ -258,30 +250,17 @@ def main(_):
       raw_sentences = raw_sentences + [raw_sentence]
       raw_probs = raw_probs + [math.exp(raw_caption.logprob)]
 
-    # delete caption words from vocabulary
+    
     if FLAGS.use_keywords:
-      flat_row_sentences = [item for sublist in raw_sentences for item in sublist.split()]
-      new_noun = list(set(noun)-set(flat_row_sentences))
-      new_verb = list(set(verb)-set(flat_row_sentences))
-      new_adjective = list(set(adjective)-set(flat_row_sentences))
-      new_adverb = list(set(adverb)-set(flat_row_sentences))
-      new_noun.sort()
-      new_verb.sort()
-      new_adjective.sort()
-      new_adverb.sort()
-      np.random.seed(FLAGS.seed)
-      noun_keywords = list(np.random.choice(new_noun,POS_num[0],replace=False))
-      verb_keywords = list(np.random.choice(new_verb,POS_num[1],replace=False))
-      adjective_keywords = list(np.random.choice(new_adjective,POS_num[2],replace=False))
-      adverb_keywords = list(np.random.choice(new_adverb,POS_num[3],replace=False))
-      
-
       if FLAGS.input_feed:
         words = FLAGS.input_feed.split()
       else:
-        words = noun_keywords+verb_keywords+adjective_keywords+adverb_keywords
-        words = list(set(words))
-
+        target_sentences_words = set([item for sublist in target_sentences for item in sublist.split()])
+        raw_sentences_words = set([item for sublist in raw_sentences for item in sublist.split()])
+        word_candidates = list((target_sentences_words & good_words) - raw_sentences_words)
+        word_candidates.sort()
+        words = list(np.random.choice(word_candidates, keywords_num, replace=False))
+    
 
     if not FLAGS.targeted and not FLAGS.use_keywords:
         target_sentences = raw_sentences
