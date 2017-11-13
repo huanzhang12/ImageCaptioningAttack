@@ -66,6 +66,8 @@ tf.flags.DEFINE_integer("offset", 0,
                         "attack start offset")
 tf.flags.DEFINE_float("C", 1,
                         "initial constant multiplied with loss1")
+tf.flags.DEFINE_float("confidence", 1, 
+                        "attack confidence kappa")
 tf.flags.DEFINE_integer("iters", 1000,
                         "number of iterations")
 tf.flags.DEFINE_integer("C_search_times", 5,
@@ -187,7 +189,7 @@ def main(_):
     sess = tf.Session(config=config)
     # build the attacker graph
     print("target:",FLAGS.targeted)
-    attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, use_logits = FLAGS.use_logits, batch_size=1, initial_const = FLAGS.C, max_iterations=FLAGS.iters, print_every=1, confidence=1, use_log=False, norm=FLAGS.norm, abort_early=False, learning_rate=0.005)
+    attack = CarliniL2(sess, inf_sess, attack_graph, inference_graph, model, inf_model, targeted = FLAGS.targeted, use_keywords = FLAGS.use_keywords, use_logits = FLAGS.use_logits, batch_size=1, initial_const = FLAGS.C, max_iterations=FLAGS.iters, print_every=1, confidence=FLAGS.confidence, use_log=False, norm=FLAGS.norm, abort_early=False, learning_rate=0.005)
     # compute graph for preprocessing
     image_placeholder = tf.placeholder(dtype=tf.string, shape=[])
     preprocessor = model.model.process_image(image_placeholder)
