@@ -265,9 +265,10 @@ class CarliniL2:
             else:
                 # use the output probability directly
                 if self.TARGETED:
-                    self.loss1 = - self.output
+                    self.loss1 = tf.reduce_sum(self.const*self.output)
+
                 else:
-                    self.loss1 = self.output
+                    self.loss1 = - tf.reduce_sum(self.const*self.output)
                 self.loss = self.loss1
 
         # self.loss2 = tf.constant(0.0)
