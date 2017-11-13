@@ -426,7 +426,7 @@ def main(_):
     record = open(record_path + "record_"+str(FLAGS.offset)+".csv","a+")
     writer = csv.writer(record)
     if FLAGS.use_keywords:
-      row = (attack_filename, best_l2_distortion,best_linf_distortion,\
+      row = (target_filename, attack_filename, best_l2_distortion,best_linf_distortion,\
         best_loss,best_loss1,best_loss2,final_C,str(final_success),target_sentences[0])
       row +=  tuple(words)
       row += (human_cap,raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),\
