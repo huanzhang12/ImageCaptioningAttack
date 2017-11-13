@@ -103,6 +103,7 @@ def main(_):
   
 
   record_path = FLAGS.result_directory
+
   # we should use os.path.join!
   if record_path[-1] != "/":
       record_path += "/"
