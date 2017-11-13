@@ -138,7 +138,7 @@ def main(_):
       "human caption",\
       "caption before attack 1","caption before attack 1 probability","caption before attack 2","caption before attack 2 probability",\
       "caption before attack 3","caption before attack 3 probability","caption after attack 1","caption after attack 1 probability",\
-      "caption after attack 2","caption after attack 2 probability")
+      "caption after attack 2","caption after attack 2 probability","caption after attack 3","caption after attack 3 probability")
   os.system("mkdir -p {}".format(os.path.join(record_path, "fail_log")))
   record = open(os.path.join(record_path, "record_"+str(FLAGS.offset)+".csv"),"a+")
   writer = csv.writer(record)
