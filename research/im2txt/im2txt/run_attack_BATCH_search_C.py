@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from l2_attack import CarliniL2
 import math
-import nltk
+# import nltk
 import os
 import csv
 import re
