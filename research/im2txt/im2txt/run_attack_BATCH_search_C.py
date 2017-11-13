@@ -114,16 +114,14 @@ def main(_):
   print("using " + FLAGS.norm +" for attack")
   if FLAGS.use_keywords:
     keywords_num = FLAGS.keywords_num
-    header = ("attack filename",\
+    header = ("target filename","attack filename",\
       "L2 distortion","L_inf distortion","loss","loss1","loss2",\
-      "optimal C","attack successful?",)
+      "optimal C","attack successful?","target_sentence")
     header += tuple(["keywords"] * keywords_num)
     header += ("human caption",\
       "caption before attack 1","caption before attack 1 probability","caption before attack 2","caption before attack 2 probability",\
-      "caption before attack 3","caption before attack 3 probability","caption before attack 4","caption before attack 4 probability",\
-      "caption before attack 5","caption before attack 5 probability","caption after attack 1","caption after attack 1 probability",\
-      "caption after attack 2","caption after attack 2 probability","caption after attack 3","caption after attack 3 probability",\
-      "caption after attack 4","caption after attack 4 probability","caption after attack 5","caption after attack 5 probability")
+      "caption before attack 3","caption before attack 3 probability","caption after attack 1","caption after attack 1 probability",\
+      "caption after attack 2","caption after attack 2 probability","caption after attack 3","caption after attack 3 probability")
     with open('wordPOS/noun.txt') as noun_file:
       noun = noun_file.read().split()
     with open('wordPOS/verb.txt') as verb_file:
@@ -137,13 +135,10 @@ def main(_):
     header = ("target filename","attack filename","L2 distortion","L_inf distortion","loss","loss1","loss2",\
       "optimal C","attack successful?","target caption 1","target caption 1 probability",\
       "target caption 2","target caption 2 probability","target caption 3","target caption 3 probability",\
-      "target caption 4","target caption 4 probability","target caption 5","target caption 5 probability",\
       "human caption",\
       "caption before attack 1","caption before attack 1 probability","caption before attack 2","caption before attack 2 probability",\
-      "caption before attack 3","caption before attack 3 probability","caption before attack 4","caption before attack 4 probability",\
-      "caption before attack 5","caption before attack 5 probability","caption after attack 1","caption after attack 1 probability",\
-      "caption after attack 2","caption after attack 2 probability","caption after attack 3","caption after attack 3 probability",\
-      "caption after attack 4","caption after attack 4 probability","caption after attack 5","caption after attack 5 probability")
+      "caption before attack 3","caption before attack 3 probability","caption after attack 1","caption after attack 1 probability",\
+      "caption after attack 2","caption after attack 2 probability")
   os.system("mkdir -p {}".format(os.path.join(record_path, "fail_log")))
   record = open(os.path.join(record_path, "record_"+str(FLAGS.offset)+".csv"),"a+")
   writer = csv.writer(record)
@@ -170,7 +165,7 @@ def main(_):
   inf_sess = tf.Session(graph=inference_graph, config=config)
   # Load the model from checkpoint.
   inf_restore_fn(inf_sess)
-  inf_generator = caption_generator.CaptionGenerator(inf_model, vocab, beam_size=5)
+  inf_generator = caption_generator.CaptionGenerator(inf_model, vocab, beam_size=3)
 
   if FLAGS.targeted or FLAGS.use_keywords:
     target_g = tf.Graph()
@@ -182,7 +177,7 @@ def main(_):
     target_g.finalize()
     target_sess = tf.Session(graph=target_g, config=config)
     target_restore_fn(target_sess)
-    target_generator = caption_generator.CaptionGenerator(target_model, vocab, beam_size=5)
+    target_generator = caption_generator.CaptionGenerator(target_model, vocab, beam_size=3)
 
   
   attack_graph = tf.Graph()
@@ -255,12 +250,18 @@ def main(_):
       if FLAGS.input_feed:
         words = FLAGS.input_feed.split()
       else:
-        target_sentences_words = set([item for sublist in target_sentences for item in sublist.split()])
-        raw_sentences_words = set([item for sublist in raw_sentences for item in sublist.split()])
+        # target_sentences_words = set([item for sublist in target_sentences for item in sublist.split()])
+        target_sentences_words = set(target_sentences[0].split())
+        # raw_sentences_words = set([item for sublist in raw_sentences for item in sublist.split()])
+        raw_sentences_words = set(raw_sentences[0].split())
         word_candidates = list((target_sentences_words & good_words) - raw_sentences_words)
         word_candidates.sort()
+        
+        if len(word_candidates)<keywords_num:
+          print("words not enough for this attack!")
+          print("****************************** END OF THIS ATTACK ***********************************")
+          continue
         words = list(np.random.choice(word_candidates, keywords_num, replace=False))
-    
 
     if not FLAGS.targeted and not FLAGS.use_keywords:
         target_sentences = raw_sentences
@@ -280,11 +281,11 @@ def main(_):
     loss1_log = []
     loss2_log = []
     loss_log = []
+
+
     for try_index in range(FLAGS.C_search_times):
-      
 
       attack_const = C_val[try_index]
-      
 
       max_caption_length = 20
 
@@ -392,7 +393,7 @@ def main(_):
       best_adv = adv
       best_loss, best_loss1, best_loss2 = loss, loss1, loss2
       if FLAGS.use_keywords:
-        target_info = {'noun_keywords': noun_keywords, 'verb_keywords': verb_keywords, 'adjective_keywords':adjective_keywords, 'adverb_keywords':adverb_keywords}
+        target_info = {"words":words, "target_filename":target_filename, "target_sentences":target_sentences}
       else:
         target_info = {'target_filename':target_filename, "target_sentences":target_sentences,"target_probs":target_probs}
       save_fail_log(adv_log, loss_log, loss1_log, loss2_log, l2_distortion_log, linf_distortion_log, success, C_val, record_path, attack_filename, raw_image, human_cap,\
@@ -425,27 +426,20 @@ def main(_):
     writer = csv.writer(record)
     if FLAGS.use_keywords:
       row = (attack_filename, best_l2_distortion,best_linf_distortion,\
-        best_loss,best_loss1,best_loss2,final_C,str(final_success))
-      row +=  tuple(noun_keywords)
-      row += tuple(verb_keywords)
-      row += tuple(adjective_keywords)
-      row += tuple(adverb_keywords)
+        best_loss,best_loss1,best_loss2,final_C,str(final_success),target_sentences[0])
+      row +=  tuple(words)
       row += (human_cap,raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),\
-        raw_sentences[3],str(raw_probs[3]),raw_sentences[4],str(raw_probs[4]),\
-        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]),\
-        adv_sentences[3],str(adv_probs[3]),adv_sentences[4],str(adv_probs[4]))
+        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]))
       writer.writerow(row)
     else:
 
       writer.writerow( (target_filename,attack_filename,\
         best_l2_distortion,best_linf_distortion,best_loss,best_loss1,best_loss2,\
         final_C,str(final_success),\
-        target_sentences[0],str(target_probs[0]),target_sentences[1],str(target_probs[1]),target_sentences[2],str(target_probs[2]),\
-        target_sentences[3],str(target_probs[3]),target_sentences[4],str(target_probs[4]),human_cap,\
+        target_sentences[0],str(target_probs[0]),target_sentences[1],str(target_probs[1]),target_sentences[2],str(target_probs[2]),human_cap,\
         raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),\
-        raw_sentences[3],str(raw_probs[3]),raw_sentences[4],str(raw_probs[4]),\
-        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]),\
-        adv_sentences[3],str(adv_probs[3]),adv_sentences[4],str(adv_probs[4])))
+        
+        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2])))
     record.close()
     print("****************************** END OF THIS ATTACK ***********************************")
 
@@ -469,26 +463,20 @@ def save_fail_log(adv_log, loss_log, loss1_log, loss2_log, l2_distortion_log, li
     adv_sentences = []
     adv_probs = []
     if FLAGS.use_keywords:
-      noun_keywords = target_info['noun_keywords']
-      verb_keywords = target_info['verb_keywords']
-      adjective_keywords = target_info['adjective_keywords']
-      adverb_keywords = target_info['adverb_keywords']
+      words = target_info["words"]
+      target_filename = target_info["target_filename"]
+      target_sentences = target_info["target_sentences"]
       for indx, adv_caption in enumerate(adv_captions):
         adv_sentence = [vocab.id_to_word(w) for w in adv_caption.sentence[1:-1]]
         adv_sentence = " ".join(adv_sentence)
         adv_sentences = adv_sentences + [adv_sentence]
         adv_probs = adv_probs + [math.exp(adv_caption.logprob)]
-      row = (attack_filename, l2_distortion_log[i],linf_distortion_log[i],\
-        loss_log[i],loss1_log[i],loss2_log[i],C_val[i],success[i],)
-      row +=  tuple(noun_keywords)
-      row += tuple(verb_keywords)
-      row += tuple(adjective_keywords)
-      row += tuple(adverb_keywords)
+      row = (target_filename, attack_filename, l2_distortion_log[i],linf_distortion_log[i],\
+        loss_log[i],loss1_log[i],loss2_log[i],C_val[i],success[i],target_sentences[0])
+      row +=  tuple(words)
       row += (human_cap,\
         raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),\
-        raw_sentences[3],str(raw_probs[3]),raw_sentences[4],str(raw_probs[4]),adv_sentences[0],str(adv_probs[0]),\
-        adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]),adv_sentences[3],str(adv_probs[3]),\
-        adv_sentences[4],str(adv_probs[4]))
+        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]))
       fail_log_writer.writerow(row)
     else:
       target_sentences = target_info['target_sentences']
@@ -502,14 +490,10 @@ def save_fail_log(adv_log, loss_log, loss1_log, loss2_log, l2_distortion_log, li
       fail_log_writer.writerow( (target_filename,attack_filename,\
         l2_distortion_log[i],linf_distortion_log[i],loss_log[i],loss1_log[i],loss2_log[i],\
         C_val[i],success[i],\
-        target_sentences[0],str(target_probs[0]),target_sentences[1],str(target_probs[1]),\
-        target_sentences[2],str(target_probs[2]),target_sentences[3],str(target_probs[3]),\
-        target_sentences[4],str(target_probs[4]),\
+        target_sentences[0],str(target_probs[0]),target_sentences[1],str(target_probs[1]),target_sentences[2],str(target_probs[2]),\
         human_cap,\
         raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),\
-        raw_sentences[3],str(raw_probs[3]),raw_sentences[4],str(raw_probs[4]),adv_sentences[0],str(adv_probs[0]),\
-        adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]),adv_sentences[3],str(adv_probs[3]),\
-        adv_sentences[4],str(adv_probs[4])))
+        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]))
     fail_log.close()
 
 if __name__ == "__main__":

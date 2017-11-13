@@ -328,7 +328,9 @@ class CarliniL2:
             # delta = self.lr * corr * (new_mt / (tf.sqrt(new_vt) + self.epsilon))
             delta = self.lr * corr * ((new_mt / tf.sqrt(new_vt + self.epsilon)) + self.noise / tf.sqrt(self.epoch + 1))
             # delta = self.lr * (self.grad + self.noise)
-
+            
+            self.new_var = var - delta
+            self.updated_newimg = tf.tanh(self.new_var + self.timg)
             assign_var = tf.assign_sub(var, delta)
             assign_mt = tf.assign(self.mt, new_mt)
             assign_vt = tf.assign(self.vt, new_vt)
@@ -374,7 +376,7 @@ class CarliniL2:
         # set the variables so that we don't have to send them over again
         if self.use_keywords:
             # TODO: use inference mode here
-            generator = caption_generator.CaptionGenerator(inf_model, vocab, beam_size = 5)
+            generator = caption_generator.CaptionGenerator(inf_model, vocab, beam_size = 3)
             captions = generator.beam_search(inf_sess, imgs[0])
             infer_caption = captions[0].sentence
             # infer_caption = [1, 0, 11, 46, 0, 195, 4, 33, 5, 0, 155, 3, 2]
@@ -405,8 +407,10 @@ class CarliniL2:
         for iteration in range(self.MAX_ITERATIONS):
             attack_begin_time = time.time()
             # perform the attack 
-            self.sess.run(self.train)
-            l, l1, l2, lps, grad_norm, nimg = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist, self.grad_norm, self.newimg])
+            if self.use_keywords:
+                l, l1, l2, lps, grad_norm, nimg, _, keywords_probs, top1_probs, disabled_mask, masked_keywords_probs, max_probs, diff_probs, min_diff_probs, last_input, softmax = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist, self.grad_norm, self.updated_newimg, self.train, self.keywords_probs, self.top1_probs, self.disabled_mask, self.masked_keywords_probs, self.max_probs, self.diff_probs, self.min_diff_probs, self.input_feed, self.softmax])
+            else:
+                l, l1, l2, lps, grad_norm, nimg, _, cap_logits, diff_probs, original_max_prob = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist, self.grad_norm, self.newimg, self.train, self.cap_logits, self.diff_probs, self.original_max_prob])
             print("[attack No.{}] [try No.{}] [C={:.5g}] iter = {}, time = {:.8f}, grad_norm = {:.5g}, loss = {:.5g}, loss1 = {:.5g}, loss2 = {:.5g}".format(attackid, try_id, CONST[0], iteration, train_timer, grad_norm, l, l1, l2))
             sys.stdout.flush()
             
@@ -414,7 +418,7 @@ class CarliniL2:
             if self.use_logits:
                 if self.use_keywords:
                     # keywords_probs, top1_probs, disabled_mask, masked_keywords_probs, max_probs, top2_keyword, top2_dis, diff_probs, min_diff_probs, last_input, softmax, logits, modified_logits = self.sess.run([self.keywords_probs, self.top1_probs, self.disabled_mask, self.masked_keywords_probs, self.max_probs, self.top2_keyword, self.top2_dis, self.diff_probs, self.min_diff_probs, self.input_feed, self.softmax, self.logits, self.modified_logits])
-                    keywords_probs, top1_probs, disabled_mask, masked_keywords_probs, max_probs, diff_probs, min_diff_probs, last_input, softmax, logits, modified_logits = self.sess.run([self.keywords_probs, self.top1_probs, self.disabled_mask, self.masked_keywords_probs, self.max_probs, self.diff_probs, self.min_diff_probs, self.input_feed, self.softmax, self.logits, self.modified_logits])
+                    # keywords_probs, top1_probs, disabled_mask, masked_keywords_probs, max_probs, diff_probs, min_diff_probs, last_input, softmax, logits, modified_logits = self.sess.run([self.keywords_probs, self.top1_probs, self.disabled_mask, self.masked_keywords_probs, self.max_probs, self.diff_probs, self.min_diff_probs, self.input_feed, self.softmax, self.logits, self.modified_logits])
                     # print("keywords probs:", keywords_probs[:int(np.sum(key_words_mask))])
                     print("keywords probs:\n", keywords_probs)
                     print("disabled mask:\n", disabled_mask)
@@ -432,7 +436,7 @@ class CarliniL2:
                     print("top 1 pred:", list(zip(last_input, top1_sentence)))
                 else:
 
-                    logits, modified_logits, cap_logits, diff_probs, original_max_prob= self.sess.run([self.logits, self.modified_logits, self.cap_logits, self.diff_probs, self.original_max_prob])
+                    # cap_logits, diff_probs, original_max_prob= self.sess.run([self.cap_logits, self.diff_probs, self.original_max_prob])
                     # print("keywords probs:", keywords_probs[:int(np.sum(key_words_mask))])
                     print("cap_logits:\n", cap_logits)
                     print("diff_probs:\n", diff_probs)
@@ -457,6 +461,7 @@ class CarliniL2:
                 true_key_words = key_words[:int(np.sum(key_words_mask))]
                 if self.use_keywords:
                     if self.TARGETED and set(true_key_words).issubset(infer_caption):
+                        l, l1, l2, lps = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist])
                         if lps[0] < best_lp:
                             best_img = np.array(nimg)
                             best_loss = l
@@ -467,7 +472,6 @@ class CarliniL2:
                 else:
                     if l < best_loss:
                         best_img = np.array(nimg)
-                        
                         best_loss1 = l1
                         best_loss2 = l2
                         best_loss = l
