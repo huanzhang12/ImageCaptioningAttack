@@ -493,7 +493,7 @@ def save_fail_log(adv_log, loss_log, loss1_log, loss2_log, l2_distortion_log, li
         target_sentences[0],str(target_probs[0]),target_sentences[1],str(target_probs[1]),target_sentences[2],str(target_probs[2]),\
         human_cap,\
         raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),\
-        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]))
+        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2])))
     fail_log.close()
 
 if __name__ == "__main__":

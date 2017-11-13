@@ -265,10 +265,10 @@ class CarliniL2:
             else:
                 # use the output probability directly
                 if self.TARGETED:
-                    self.loss = - self.output
+                    self.loss1 = - self.output
                 else:
-                    self.loss = self.output
-
+                    self.loss1 = self.output
+                self.loss = self.loss1
 
         # self.loss2 = tf.constant(0.0)
         
@@ -407,10 +407,14 @@ class CarliniL2:
         for iteration in range(self.MAX_ITERATIONS):
             attack_begin_time = time.time()
             # perform the attack 
-            if self.use_keywords:
-                l, l1, l2, lps, grad_norm, nimg, _, keywords_probs, top1_probs, disabled_mask, masked_keywords_probs, max_probs, diff_probs, min_diff_probs, last_input, softmax = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist, self.grad_norm, self.updated_newimg, self.train, self.keywords_probs, self.top1_probs, self.disabled_mask, self.masked_keywords_probs, self.max_probs, self.diff_probs, self.min_diff_probs, self.input_feed, self.softmax])
+            if self.use_logits:
+                if self.use_keywords:
+                    l, l1, l2, lps, grad_norm, nimg, _, keywords_probs, top1_probs, disabled_mask, masked_keywords_probs, max_probs, diff_probs, min_diff_probs, last_input, softmax = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist, self.grad_norm, self.updated_newimg, self.train, self.keywords_probs, self.top1_probs, self.disabled_mask, self.masked_keywords_probs, self.max_probs, self.diff_probs, self.min_diff_probs, self.input_feed, self.softmax])
+                else:
+                    l, l1, l2, lps, grad_norm, nimg, _, cap_logits, diff_probs, original_max_prob = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist, self.grad_norm, self.newimg, self.train, self.cap_logits, self.diff_probs, self.original_max_prob])
             else:
-                l, l1, l2, lps, grad_norm, nimg, _, cap_logits, diff_probs, original_max_prob = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist, self.grad_norm, self.newimg, self.train, self.cap_logits, self.diff_probs, self.original_max_prob])
+                l, l1, l2, lps, grad_norm, nimg, _ = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist, self.grad_norm, self.newimg, self.train])
+            
             print("[attack No.{}] [try No.{}] [C={:.5g}] iter = {}, time = {:.8f}, grad_norm = {:.5g}, loss = {:.5g}, loss1 = {:.5g}, loss2 = {:.5g}".format(attackid, try_id, CONST[0], iteration, train_timer, grad_norm, l, l1, l2))
             sys.stdout.flush()
             
