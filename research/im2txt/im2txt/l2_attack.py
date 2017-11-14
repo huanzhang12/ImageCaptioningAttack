@@ -160,14 +160,14 @@ class CarliniL2:
         # self.keywords_probs = tf.reduce_max(tf.gather(self.softmax, self.key_words, axis=1), axis=0)
         # loss1 = tf.reduce_sum(tf.log(self.keywords_probs) * tf.cast(self.key_words_mask, tf.float32))
 
-        # these are the true lenghth of logits and keywords without masked words
 
         if self.use_keywords:
             # use the keywords loss
-
+            # these are the true lenghth of logits and keywords without masked words
             true_logits_len = tf.cast(tf.reduce_sum(self.input_mask), tf.int32) - 1 
             true_keywords_len = tf.cast(tf.reduce_sum(self.key_words_mask), tf.int32)
-            
+
+            # generate masks for masking the position where a keyword is already top-1
             # reshape logits to true size
             self.logits = self.logits[:true_logits_len]
             print(self.logits.shape)
@@ -182,59 +182,82 @@ class CarliniL2:
             self.max_keywords_args = tf.cast(tf.argmax(self.keywords_probs, axis = 1), tf.int32)
             # largest probability among all keywords
             self.max_keywords_vals = tf.reduce_max(self.keywords_probs, axis = 1)
-            """
-            # generate the (sparse) indices for the maximum keyw
-            self.keywords_indices_to_dec = tf.concat([tf.expand_dims(tf.range(true_logits_len), axis=1), tf.expand_dims(self.max_keywords_args, axis=1)], axis=1)
-            # convert to dense array
-            self.keywords_mask = tf.scatter_nd(self.keywords_indices_to_dec, tf.ones(tf.expand_dims(true_logits_len, axis=0)), shape=(true_logits_len, true_keywords_len))
-            # new keywords probability with the largest masked
-            self.masked_keywords_probs = self.keywords_probs - 10000 * self.keywords_mask
-            # extract the second largest keyword probability
-            self.top2_keyword = tf.reduce_max(self.masked_keywords_probs, axis = 1)
-            # extract the top-2 loss
-            self.top2_dis = tf.maximum(5 - (self.top1_probs - self.top2_keyword), 0)
-            """
 
             # if the top-1 word is a keyword, then decrease all other keywords probability at this position!
             self.is_top1_keyword = tf.expand_dims(tf.cast(tf.equal(self.top1_probs, self.max_keywords_vals), tf.float32), axis=1)
             # generate the indices for decreasing 10000 (sparse index), by combining a range(3) with the max keyword location at each word
             self.keywords_indices_to_dec = tf.concat([tf.expand_dims(tf.range(true_logits_len), axis=1), tf.expand_dims(self.max_keywords_args, axis=1)], axis=1)
-            # convert to dense array
+            # convert to dense array. This array indicaties the location of top-1 keywords
             self.keywords_mask = tf.scatter_nd(self.keywords_indices_to_dec, tf.ones(tf.expand_dims(true_logits_len, axis=0)), shape=(true_logits_len, true_keywords_len))
             # disable the keywords on the positions where top-1 is already a keyword
             self.disabled_mask = self.is_top1_keyword * (tf.ones_like(self.keywords_probs) - self.keywords_mask)
-            # disable them!
-            self.masked_keywords_probs = self.keywords_probs - 10000 * self.disabled_mask
 
-            
-            # get the key word IDs for each position
-            self.key_words_to_dec = tf.cast(tf.gather(self.key_words, self.max_keywords_args), tf.int32)
-            # generate 2-D indices
-            self.indices_to_dec = tf.concat([tf.expand_dims(tf.range(true_logits_len), axis=1), tf.expand_dims(self.key_words_to_dec, axis=1)], axis=1)
-            # generate a mask for the maximum key word probability at each word position
-            self.logits_mask = tf.scatter_nd(self.indices_to_dec, tf.ones(tf.expand_dims(true_logits_len, axis=0)), shape=(true_logits_len, int(self.logits.shape[1])))
-            # modify the logits, add a large negative number to the corresponding max keyword
-            self.modified_logits = self.logits - 10000 * self.logits_mask
-
-            self.max_probs = tf.reduce_max(self.modified_logits, axis=1)
-            print(self.max_probs.shape) # 19
-
-            self.diff_probs = tf.maximum(tf.tile(tf.expand_dims(self.max_probs,1),[1,true_keywords_len]) - self.masked_keywords_probs, - self.CONFIDENCE)
-            print(self.diff_probs.shape)
-
-            self.min_diff_probs = tf.reduce_min(self.diff_probs, axis = 0)
-            
-            # loss1 = tf.reduce_sum(self.min_diff_probs) + tf.reduce_sum(self.top2_dis)
-            loss1 = tf.reduce_sum(self.min_diff_probs)
-            self.loss1 = tf.reduce_sum(self.const*loss1)
-            print(loss1.shape)
             if self.use_logits:
-                if self.TARGETED:
-                    self.loss = self.loss1 #increase the probability of keywords
-                else:
-                    self.loss = - self.loss1 #decrease the probability of keywords
+                
+                """
+                # generate the (sparse) indices for the maximum keyw
+                self.keywords_indices_to_dec = tf.concat([tf.expand_dims(tf.range(true_logits_len), axis=1), tf.expand_dims(self.max_keywords_args, axis=1)], axis=1)
+                # convert to dense array
+                self.keywords_mask = tf.scatter_nd(self.keywords_indices_to_dec, tf.ones(tf.expand_dims(true_logits_len, axis=0)), shape=(true_logits_len, true_keywords_len))
+                # new keywords probability with the largest masked
+                self.masked_keywords_probs = self.keywords_probs - 10000 * self.keywords_mask
+                # extract the second largest keyword probability
+                self.top2_keyword = tf.reduce_max(self.masked_keywords_probs, axis = 1)
+                # extract the top-2 loss
+                self.top2_dis = tf.maximum(5 - (self.top1_probs - self.top2_keyword), 0)
+                """
+
+                # disable them! (at each position, K-1 keywords)
+                self.masked_keywords_probs = self.keywords_probs - 10000 * self.disabled_mask
+
+                
+                # get the key word IDs for each position
+                self.key_words_to_dec = tf.cast(tf.gather(self.key_words, self.max_keywords_args), tf.int32)
+                # generate 2-D indices
+                self.indices_to_dec = tf.concat([tf.expand_dims(tf.range(true_logits_len), axis=1), tf.expand_dims(self.key_words_to_dec, axis=1)], axis=1)
+                # generate a mask for the maximum key word probability at each word position
+                self.logits_mask = tf.scatter_nd(self.indices_to_dec, tf.ones(tf.expand_dims(true_logits_len, axis=0)), shape=(true_logits_len, int(self.logits.shape[1])))
+                # modify the logits, add a large negative number to the corresponding max keyword
+                self.modified_logits = self.logits - 10000 * self.logits_mask
+
+                self.max_probs = tf.reduce_max(self.modified_logits, axis=1)
+                print(self.max_probs.shape) # 19
+
+                self.diff_probs = tf.maximum(tf.tile(tf.expand_dims(self.max_probs,1),[1,true_keywords_len]) - self.masked_keywords_probs, - self.CONFIDENCE)
+                print(self.diff_probs.shape)
+
+                self.min_diff_probs = tf.reduce_min(self.diff_probs, axis = 0)
+                
+                # loss1 = tf.reduce_sum(self.min_diff_probs) + tf.reduce_sum(self.top2_dis)
+                loss1 = tf.reduce_sum(self.min_diff_probs)
+                self.loss1 = tf.reduce_sum(self.const*loss1)
+                print(loss1.shape)
             else:
-                raise ValueError("keywords based attack has to use logits in the loss.")
+                # reshape softmax to true size
+                self.softmax = self.softmax[:true_logits_len]
+                self.top1_softmax = tf.reduce_max(self.softmax, axis=1)
+
+                # gather the probability of keywords at each position
+                self.keywords_softmax = tf.gather(self.softmax, self.key_words[:true_keywords_len], axis=1)
+
+                # disable them! (at each position, K-1 keywords)
+                self.masked_keywords_softmax = self.keywords_softmax * (1 - self.disabled_mask)
+
+                self.max_probs = tf.reduce_max(self.masked_keywords_softmax, axis=0)
+                loss1 = tf.log(self.max_probs + 1e-30)
+                self.loss1 = - tf.reduce_sum(self.const*loss1)
+                # print(t.get_shape())
+                # loss1 = tf.reduce_sum(tf.log(tf.reduce_max(tf.gather(tf.transpose(self.softmax, perm=[1,0]), self.key_words), axis=1)+ 1e-30)
+                # print(self.softmax.get_shape())
+                # print("softmax:", self.softmax.get_shape())
+                # print("tf.gather(self.softmax, self.key_words, axis=1):", tf.gather(self.softmax, self.key_words, axis=1))
+                # print("key_words_mask:", tf.cast(self.key_words_mask, tf.float32).get_shape())
+                # print(tf.reduce_max(tf.gather(self.softmax, self.key_words, axis=1), axis=0).get_shape())
+                
+            if self.TARGETED:
+                self.loss = self.loss1 #increase the probability of keywords
+            else:
+                self.loss = - self.loss1 #decrease the probability of keywords
         else:
             # use a new caption
             if self.use_logits:
@@ -372,7 +395,7 @@ class CarliniL2:
         # batchseqs = input_seqs[:batch_size]
         # batchmasks = input_masks[:batch_size]
 
-        np.set_printoptions(precision=4, linewidth=120)
+        np.set_printoptions(precision=3, linewidth=150)
 
         # set the variables so that we don't have to send them over again
         if self.use_keywords:
@@ -414,9 +437,12 @@ class CarliniL2:
                 else:
                     l, l1, l2, lps, grad_norm, nimg, _, cap_logits, diff_probs, original_max_prob = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist, self.grad_norm, self.newimg, self.train, self.cap_logits, self.diff_probs, self.original_max_prob])
             else:
-                l, l1, l2, lps, grad_norm, nimg, _ = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist, self.grad_norm, self.newimg, self.train])
+                if self.use_keywords:
+                    l, l1, l2, lps, grad_norm, nimg, _, disabled_mask, keywords_softmax, masked_keywords_softmax, top1_probs, max_probs, last_input, softmax = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist, self.grad_norm, self.updated_newimg, self.train, self.disabled_mask, self.keywords_softmax, self.masked_keywords_softmax, self.top1_softmax, self.max_probs, self.input_feed, self.softmax])
+                else:
+                    l, l1, l2, lps, grad_norm, nimg, _ = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist, self.grad_norm, self.newimg, self.train])
             
-            print("[attack No.{}] [try No.{}] [C={:.5g}] iter = {}, time = {:.8f}, grad_norm = {:.5g}, loss = {:.5g}, loss1 = {:.5g}, loss2 = {:.5g}".format(attackid, try_id, CONST[0], iteration, train_timer, grad_norm, l, l1, l2))
+            print("[attack No.{}] [try No.{}] [C={:.5g}] iter = {}, time = {:.8f}, grad_norm = {:.5g}, loss = {:.5g}, loss1 = {:.5g}, loss2 = {:.5g}, best_lp = {:.5g}".format(attackid, try_id, CONST[0], iteration, train_timer, grad_norm, l, l1, l2, best_lp))
             sys.stdout.flush()
             
             # update softmax using the latest variable
@@ -425,20 +451,15 @@ class CarliniL2:
                     # keywords_probs, top1_probs, disabled_mask, masked_keywords_probs, max_probs, top2_keyword, top2_dis, diff_probs, min_diff_probs, last_input, softmax, logits, modified_logits = self.sess.run([self.keywords_probs, self.top1_probs, self.disabled_mask, self.masked_keywords_probs, self.max_probs, self.top2_keyword, self.top2_dis, self.diff_probs, self.min_diff_probs, self.input_feed, self.softmax, self.logits, self.modified_logits])
                     # keywords_probs, top1_probs, disabled_mask, masked_keywords_probs, max_probs, diff_probs, min_diff_probs, last_input, softmax, logits, modified_logits = self.sess.run([self.keywords_probs, self.top1_probs, self.disabled_mask, self.masked_keywords_probs, self.max_probs, self.diff_probs, self.min_diff_probs, self.input_feed, self.softmax, self.logits, self.modified_logits])
                     # print("keywords probs:", keywords_probs[:int(np.sum(key_words_mask))])
-                    print("keywords probs:\n", keywords_probs)
-                    print("disabled mask:\n", disabled_mask)
-                    print("masked keywords probs:\n", masked_keywords_probs)
+                    print("keywords probs:\n", keywords_probs.T)
+                    print("disabled mask:\n", disabled_mask.T)
+                    print("masked keywords probs:\n", masked_keywords_probs.T)
                     # print("top2 keyword prob:\n", top2_keyword)
                     print("top1 probs:\n", top1_probs)
                     print("max probs (after -10000):\n", max_probs)
                     # print("top2 distance:\n", top2_dis)
-                    print("diff probs:\n", diff_probs)
+                    print("diff probs:\n", diff_probs.T)
                     print("min diff probs:\n", min_diff_probs)
-                    last_input = [vocab.id_to_word(s) for s in last_input[0]]
-                    top1_sentence = []
-                    for word in softmax:
-                        top1_sentence.append(vocab.id_to_word(np.argmax(word)))
-                    print("top 1 pred:", list(zip(last_input, top1_sentence)))
                 else:
 
                     # cap_logits, diff_probs, original_max_prob= self.sess.run([self.cap_logits, self.diff_probs, self.original_max_prob])
@@ -446,8 +467,20 @@ class CarliniL2:
                     print("cap_logits:\n", cap_logits)
                     print("diff_probs:\n", diff_probs)
                     print("original_max_prob:\n", original_max_prob)
-                    
-
+            else:
+                if self.use_keywords:
+                    print("keywords probs:\n", keywords_softmax.T)
+                    print("top1 probs:\n", top1_probs)
+                    print("disabled mask:\n", disabled_mask.T)
+                    print("masked keywords probs:\n", masked_keywords_softmax.T)
+                    print("max probs:\n", max_probs)
+            
+            if self.use_keywords:
+                last_input = [vocab.id_to_word(s) for s in last_input[0]]
+                top1_sentence = []
+                for word in softmax:
+                    top1_sentence.append(vocab.id_to_word(np.argmax(word)))
+                print("top 1 pred:", list(zip(last_input, top1_sentence)))
             
             # use beam search in inference mode here if we do key_words based attack
             if iteration % iter_per_sentence == 0:
@@ -479,6 +512,7 @@ class CarliniL2:
                         best_img = np.array(nimg)
                         best_loss1 = l1
                         best_loss2 = l2
+                        best_lp = lps[0]
                         best_loss = l
                         
                     

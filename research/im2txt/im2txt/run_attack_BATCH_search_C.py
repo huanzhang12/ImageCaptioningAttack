@@ -315,7 +315,10 @@ def main(_):
       else:
         # exact attack
         if FLAGS.targeted:
-          new_sentence = target_sentences[0]
+          if FLAGS.input_feed:
+            new_sentence = FLAGS.input_feed
+          else:
+            new_sentence = target_sentences[0]
         else:
           new_sentence = raw_sentences[0]
         # new_sentence = "a black and white photo of a train on a track ."
