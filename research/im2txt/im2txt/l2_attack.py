@@ -482,14 +482,14 @@ class CarliniL2:
                         best_loss = l
                         
                     
-                # print("max likelihood id array found:", infer_caption)
-                true_infer_cap_len = len(infer_caption)
-                infer_caption = infer_caption[0:true_infer_cap_len] + [vocab.end_id]*(max_caption_length-true_infer_cap_len)
-                infer_mask = np.append(np.ones(true_infer_cap_len),np.zeros(max_caption_length-true_infer_cap_len))
-                # print("input id array for next iteration:", infer_caption)
-                # print("input mask for next iteration:", infer_mask)
-                # print caption in each iteration
                 if self.use_keywords:
+                    # print("max likelihood id array found:", infer_caption)
+                    true_infer_cap_len = len(infer_caption)
+                    infer_caption = infer_caption[0:true_infer_cap_len] + [vocab.end_id]*(max_caption_length-true_infer_cap_len)
+                    infer_mask = np.append(np.ones(true_infer_cap_len),np.zeros(max_caption_length-true_infer_cap_len))
+                    # print("input id array for next iteration:", infer_caption)
+                    # print("input mask for next iteration:", infer_mask)
+                    # print caption in each iteration
                     self.sess.run(self.reset_input, {self.assign_input_mask: [infer_mask],
                                                self.assign_input_feed: [infer_caption]})
             
