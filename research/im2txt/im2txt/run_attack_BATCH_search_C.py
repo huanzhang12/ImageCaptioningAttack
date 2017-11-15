@@ -78,6 +78,7 @@ tf.flags.DEFINE_string("caption_file","","human caption file")
 
 tf.flags.DEFINE_string("input_feed", "",
                        "keywords or caption input")
+tf.flags.DEFINE_bool("target_human_caption", False, "Use human caption as target caption?")
 '''
 tf.flags.DEFINE_string("keywords_POS_num", "1 0 0 0",
                        "number of keywords from different part-of-speech (POS), e.g. \"w x y z\" means w noun, x verb, y adjective and z adverb.")
@@ -103,6 +104,7 @@ def main(_):
   random.seed(FLAGS.seed)
   np.random.seed(FLAGS.seed)
   
+  beam_size = 3
 
   record_path = FLAGS.result_directory
 
@@ -168,7 +170,7 @@ def main(_):
   inf_sess = tf.Session(graph=inference_graph, config=config)
   # Load the model from checkpoint.
   inf_restore_fn(inf_sess)
-  inf_generator = caption_generator.CaptionGenerator(inf_model, vocab, beam_size=3)
+  inf_generator = caption_generator.CaptionGenerator(inf_model, vocab, beam_size=beam_size)
 
   if FLAGS.targeted or FLAGS.use_keywords:
     target_g = tf.Graph()
@@ -180,7 +182,7 @@ def main(_):
     target_g.finalize()
     target_sess = tf.Session(graph=target_g, config=config)
     target_restore_fn(target_sess)
-    target_generator = caption_generator.CaptionGenerator(target_model, vocab, beam_size=3)
+    target_generator = caption_generator.CaptionGenerator(target_model, vocab, beam_size=beam_size)
 
   
   attack_graph = tf.Graph()
@@ -207,18 +209,29 @@ def main(_):
     if FLAGS.targeted or FLAGS.use_keywords:
       target_filename = filenames[j+FLAGS.offset]
       print("Captions for target image %s:" % os.path.basename(target_filename))
-      with tf.gfile.GFile(image_directory+target_filename, "rb") as f:
-        target_image = f.read()
-        target_image = target_sess.run(target_preprocessor, {target_image_placeholder: target_image})
-      target_captions = target_generator.beam_search(target_sess, target_image)
-      target_sentences = []
-      target_probs = []
-      for indx, target_caption in enumerate(target_captions):
-        target_sentence = [vocab.id_to_word(w) for w in target_caption.sentence[1:-1]]
-        target_sentence = " ".join(target_sentence)
-        print("  %d) %s (p=%f)" % (1, target_sentence, math.exp(target_caption.logprob)))
-        target_sentences = target_sentences + [target_sentence]
-        target_probs = target_probs + [math.exp(target_caption.logprob)]
+      if FLAGS.target_human_caption:
+        print("using HUMAN captions as target captions!")
+        target_image_id = int(re.match(r"^.*\_(.*)\..*$",target_filename).group(1))
+        target_sentences = [item['caption'] for item in caption_info if item['image_id']==target_image_id]
+        if len(target_sentences)<beam_size:
+          target_sentences = target_sentences+[None]*(beam_size-len(target_sentences))
+        if len(target_sentences)>beam_size:
+          target_sentences = target_sentences[:beam_size]
+        target_probs = [1] * beam_size
+      else:
+        print("using INFERENCE captions as target captions!")
+        with tf.gfile.GFile(image_directory+target_filename, "rb") as f:
+          target_image = f.read()
+          target_image = target_sess.run(target_preprocessor, {target_image_placeholder: target_image})
+        target_captions = target_generator.beam_search(target_sess, target_image)
+        target_sentences = []
+        target_probs = []
+        for indx, target_caption in enumerate(target_captions):
+          target_sentence = [vocab.id_to_word(w) for w in target_caption.sentence[1:-1]]
+          target_sentence = " ".join(target_sentence)
+          print("  %d) %s (p=%f)" % (1, target_sentence, math.exp(target_caption.logprob)))
+          target_sentences = target_sentences + [target_sentence]
+          target_probs = target_probs + [math.exp(target_caption.logprob)]
 
 
     attack_filename = filenames[len(filenames)-1-j-FLAGS.offset]
