@@ -463,7 +463,7 @@ def main(_):
     print("****************************** END OF THIS ATTACK ***********************************")
 
   inf_sess.close()
-  if not FLAGS.use_keywords and not FLAGS.targeted:
+  if FLAGS.use_keywords or FLAGS.targeted:
     target_sess.close()
   
   sess.close()
