@@ -23,6 +23,8 @@ if __name__ == "__main__":
     print(csv_files)
     # read all csv files into a pandas dataframe
     dfs = [pd.read_csv(csv_file) for csv_file in csv_files]
+    if len(dfs) == 0:
+        raise RuntimeError("No valid csv results files found.")
     result = pd.concat(dfs)
 
     total_attacks = result.shape[0]
@@ -36,8 +38,10 @@ if __name__ == "__main__":
     adv_file_names = [os.path.join(args.log_dir, 'adversarial_' + n.replace("jpg", "png") + ".npy") for n in file_names]
     ori_file_names = [os.path.join(args.log_dir, 'original_' + n.replace("jpg", "png") + ".npy") for n in file_names]
     attack_sentences = []
+    origin_sentences = []
     for i in range(args.beam_size):
         attack_sentences.append(list(result['target caption {}'.format(i + 1)]))
+        origin_sentences.append(list(result['caption before attack {}'.format(i + 1)]))
     l2_dist = list(result['L2 distortion'])
     linf_dist = list(result['L_inf distortion'])
 
@@ -55,6 +59,7 @@ if __name__ == "__main__":
     f_ori = open(args.output + "_ori.txt", "w")
     f_adv = open(args.output + "_adv.txt", "w")
     f_tgt = open(args.output + "_tgt.txt", "w")
+    f_tgt_ori = open(args.output + "_tgt_ori.txt", "w")
 
     # print to output
     for i in range(len(ori_captions)):
@@ -69,10 +74,13 @@ if __name__ == "__main__":
             f_tgt.write("{}\t{}\n".format(image_id, s))
             if not args.quiet:
                 print('adv target {}: {}'.format(j, s))
+            s = origin_sentences[j][i]
+            f_tgt_ori.write("{}\t{}\n".format(image_id, s))
         if not args.quiet:
             print('---------------------')
 
     f_ori.close()
     f_adv.close()
     f_tgt.close()
+    f_tgt_ori.close()
 
