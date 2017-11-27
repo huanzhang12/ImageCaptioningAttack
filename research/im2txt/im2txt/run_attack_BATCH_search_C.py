@@ -104,7 +104,7 @@ def main(_):
   random.seed(FLAGS.seed)
   np.random.seed(FLAGS.seed)
   
-  beam_size = 3
+  beam_size = 5
 
   record_path = FLAGS.result_directory
 
@@ -117,6 +117,8 @@ def main(_):
   caption_info = caption_file['annotations']
 
   print("using " + FLAGS.norm +" for attack")
+  print("targeted?", FLAGS.targeted)
+  print("attack confidence kappa", FLAGS.confidence)
   if FLAGS.use_keywords:
     keywords_num = FLAGS.keywords_num
     header = ("target filename","attack filename",\
@@ -125,8 +127,10 @@ def main(_):
     header += tuple(["keywords"] * keywords_num)
     header += ("human caption",\
       "caption before attack 1","caption before attack 1 probability","caption before attack 2","caption before attack 2 probability",\
-      "caption before attack 3","caption before attack 3 probability","caption after attack 1","caption after attack 1 probability",\
-      "caption after attack 2","caption after attack 2 probability","caption after attack 3","caption after attack 3 probability")
+      "caption before attack 3","caption before attack 3 probability","caption before attack 4","caption before attack 4 probability",\
+      "caption before attack 5","caption before attack 5 probability","caption after attack 1","caption after attack 1 probability",\
+      "caption after attack 2","caption after attack 2 probability","caption after attack 3","caption after attack 3 probability",\
+      "caption after attack 4","caption after attack 4 probability","caption after attack 5","caption after attack 5 probability")
     with open('wordPOS/noun.txt') as noun_file:
       noun = noun_file.read().split()
     with open('wordPOS/verb.txt') as verb_file:
@@ -140,10 +144,13 @@ def main(_):
     header = ("target filename","attack filename","L2 distortion","L_inf distortion","loss","loss1","loss2",\
       "optimal C","attack successful?","target caption 1","target caption 1 probability",\
       "target caption 2","target caption 2 probability","target caption 3","target caption 3 probability",\
+      "target caption 4","target caption 4 probability","target caption 5","target caption 5 probability",\
       "human caption",\
       "caption before attack 1","caption before attack 1 probability","caption before attack 2","caption before attack 2 probability",\
-      "caption before attack 3","caption before attack 3 probability","caption after attack 1","caption after attack 1 probability",\
-      "caption after attack 2","caption after attack 2 probability","caption after attack 3","caption after attack 3 probability")
+      "caption before attack 3","caption before attack 3 probability","caption before attack 4","caption before attack 4 probability",\
+      "caption before attack 5","caption before attack 5 probability","caption after attack 1","caption after attack 1 probability",\
+      "caption after attack 2","caption after attack 2 probability","caption after attack 3","caption after attack 3 probability",\
+      "caption after attack 4","caption after attack 4 probability","caption after attack 5","caption after attack 5 probability")
   os.system("mkdir -p {}".format(os.path.join(record_path, "fail_log")))
   record = open(os.path.join(record_path, "record_"+str(FLAGS.offset)+".csv"),"a+")
   writer = csv.writer(record)
@@ -447,18 +454,18 @@ def main(_):
       row = (target_filename, attack_filename, best_l2_distortion,best_linf_distortion,\
         best_loss,best_loss1,best_loss2,final_C,str(final_success),target_sentences[0])
       row +=  tuple(words)
-      row += (human_cap,raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),\
-        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]))
+      row += (human_cap,raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),raw_sentences[3],str(raw_probs[3]),raw_sentences[4],str(raw_probs[4]),\
+        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]),adv_sentences[3],str(adv_probs[3]),adv_sentences[4],str(adv_probs[4]))
       writer.writerow(row)
     else:
 
       writer.writerow( (target_filename,attack_filename,\
         best_l2_distortion,best_linf_distortion,best_loss,best_loss1,best_loss2,\
         final_C,str(final_success),\
-        target_sentences[0],str(target_probs[0]),target_sentences[1],str(target_probs[1]),target_sentences[2],str(target_probs[2]),human_cap,\
-        raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),\
-        
-        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2])))
+        target_sentences[0],str(target_probs[0]),target_sentences[1],str(target_probs[1]),target_sentences[2],str(target_probs[2]),target_sentences[3],str(target_probs[3]),target_sentences[4],str(target_probs[4]),\
+        human_cap,\
+        raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),raw_sentences[3],str(raw_probs[3]),raw_sentences[4],str(raw_probs[4]),\
+        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]),adv_sentences[3],str(adv_probs[3]),adv_sentences[4],str(adv_probs[4])))
     record.close()
     print("****************************** END OF THIS ATTACK ***********************************")
 
@@ -494,8 +501,8 @@ def save_fail_log(adv_log, loss_log, loss1_log, loss2_log, l2_distortion_log, li
         loss_log[i],loss1_log[i],loss2_log[i],C_val[i],success[i],target_sentences[0])
       row +=  tuple(words)
       row += (human_cap,\
-        raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),\
-        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]))
+        raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),raw_sentences[3],str(raw_probs[3]),raw_sentences[4],str(raw_probs[4]),\
+        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]),adv_sentences[3],str(adv_probs[3]),adv_sentences[4],str(adv_probs[4]))
       fail_log_writer.writerow(row)
     else:
       target_sentences = target_info['target_sentences']
@@ -509,10 +516,10 @@ def save_fail_log(adv_log, loss_log, loss1_log, loss2_log, l2_distortion_log, li
       fail_log_writer.writerow( (target_filename,attack_filename,\
         l2_distortion_log[i],linf_distortion_log[i],loss_log[i],loss1_log[i],loss2_log[i],\
         C_val[i],success[i],\
-        target_sentences[0],str(target_probs[0]),target_sentences[1],str(target_probs[1]),target_sentences[2],str(target_probs[2]),\
+        target_sentences[0],str(target_probs[0]),target_sentences[1],str(target_probs[1]),target_sentences[2],str(target_probs[2]),target_sentences[3],str(target_probs[3]),target_sentences[4],str(target_probs[4]),\
         human_cap,\
-        raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),\
-        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2])))
+        raw_sentences[0],str(raw_probs[0]),raw_sentences[1],str(raw_probs[1]),raw_sentences[2],str(raw_probs[2]),raw_sentences[3],str(raw_probs[3]),raw_sentences[4],str(raw_probs[4]),\
+        adv_sentences[0],str(adv_probs[0]),adv_sentences[1],str(adv_probs[1]),adv_sentences[2],str(adv_probs[2]),adv_sentences[3],str(adv_probs[3]),adv_sentences[4],str(adv_probs[4])))
     fail_log.close()
 
 if __name__ == "__main__":
