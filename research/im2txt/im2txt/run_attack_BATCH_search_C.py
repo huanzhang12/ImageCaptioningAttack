@@ -67,11 +67,10 @@ tf.flags.DEFINE_string("caption_file","","human caption file")
 
 tf.flags.DEFINE_string("input_feed", "",
                        "keywords or caption input")
-tf.flags.DEFINE_bool("target_human_caption", False, "Use human caption as target caption?")
 
 tf.flags.DEFINE_integer("keywords_num", 3,
                         "number of keywords")
-tf.flags.DEFINE_integer("beam_size", 5, "beam search size")
+tf.flags.DEFINE_integer("beam_size", 3, "beam search size")
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -192,29 +191,18 @@ def main(_):
     if FLAGS.targeted or FLAGS.use_keywords:
       target_filename = filenames[j+FLAGS.offset]
       print("Captions for target image %s:" % os.path.basename(target_filename))
-      if FLAGS.target_human_caption:
-        print("using HUMAN captions as target captions!")
-        target_image_id = int(re.match(r"^.*\_(.*)\..*$",target_filename).group(1))
-        target_sentences = [item['caption'] for item in caption_info if item['image_id']==target_image_id]
-        if len(target_sentences)<beam_size:
-          target_sentences = target_sentences+[None]*(beam_size-len(target_sentences))
-        if len(target_sentences)>beam_size:
-          target_sentences = target_sentences[:beam_size]
-        target_probs = [1] * beam_size
-      else:
-        print("using INFERENCE captions as target captions!")
-        with tf.gfile.GFile(image_directory+target_filename, "rb") as f:
-          target_image = f.read()
-          target_image = target_sess.run(target_preprocessor, {target_image_placeholder: target_image})
-        target_captions = target_generator.beam_search(target_sess, target_image)
-        target_sentences = []
-        target_probs = []
-        for indx, target_caption in enumerate(target_captions):
-          target_sentence = [vocab.id_to_word(w) for w in target_caption.sentence[1:-1]]
-          target_sentence = " ".join(target_sentence)
-          print("  %d) %s (p=%f)" % (1, target_sentence, math.exp(target_caption.logprob)))
-          target_sentences = target_sentences + [target_sentence]
-          target_probs = target_probs + [math.exp(target_caption.logprob)]
+      with tf.gfile.GFile(image_directory+target_filename, "rb") as f:
+        target_image = f.read()
+        target_image = target_sess.run(target_preprocessor, {target_image_placeholder: target_image})
+      target_captions = target_generator.beam_search(target_sess, target_image)
+      target_sentences = []
+      target_probs = []
+      for indx, target_caption in enumerate(target_captions):
+        target_sentence = [vocab.id_to_word(w) for w in target_caption.sentence[1:-1]]
+        target_sentence = " ".join(target_sentence)
+        print("  %d) %s (p=%f)" % (1, target_sentence, math.exp(target_caption.logprob)))
+        target_sentences = target_sentences + [target_sentence]
+        target_probs = target_probs + [math.exp(target_caption.logprob)]
 
 
     attack_filename = filenames[len(filenames)-1-j-FLAGS.offset]
@@ -258,7 +246,7 @@ def main(_):
         
         if len(word_candidates)<keywords_num:
           print("words not enough for this attack!")
-          print("****************************** END OF THIS ATTACK ***********************************")
+          print("****************************************** END OF THIS ATTACK ******************************************")
           continue
         words = list(np.random.choice(word_candidates, keywords_num, replace=False))
 
@@ -293,7 +281,7 @@ def main(_):
         print("My key words are: ", words)
         key_words_mask = np.append(np.ones(len(key_words)),np.zeros(max_caption_length-len(key_words)))
         key_words = key_words + [vocab.end_id]*(max_caption_length-len(key_words))
-        adv, loss, loss1, loss2, _ = attack.attack(np.array([raw_image]), sess, inf_sess, model, inf_model, vocab, key_words, key_words_mask, j, try_index, FLAGS.infer_per_iter, attack_const = attack_const)
+        adv, loss, loss1, loss2, _ = attack.attack(np.array([raw_image]), sess, inf_sess, model, inf_model, vocab, key_words, key_words_mask, j, try_index, beam_size, FLAGS.infer_per_iter, attack_const = attack_const)
       else:
         # exact attack
         if FLAGS.targeted:
@@ -312,7 +300,6 @@ def main(_):
         print("My target id:", new_caption)
         new_mask = np.append(np.ones(true_cap_len),np.zeros(max_caption_length-true_cap_len))
         adv, loss, loss1, loss2, _ = attack.attack(np.array([raw_image]), sess, inf_sess,model, inf_model, vocab, new_caption, new_mask, j, try_index, 1, attack_const = attack_const)
-
       # save information of this image to log array
       adv_log += [adv]
       loss_log += [loss]
@@ -392,6 +379,7 @@ def main(_):
     if not final_success:
       final_C = C_val[-1]
       best_adv = adv
+      
       best_loss, best_loss1, best_loss2 = loss, loss1, loss2
       if FLAGS.use_keywords:
         target_info = {"words":words, "target_filename":target_filename, "target_sentences":target_sentences}
@@ -426,6 +414,7 @@ def main(_):
     record = open(record_path + "record_"+str(FLAGS.offset)+".csv","a+")
     writer = csv.writer(record)
     if FLAGS.use_keywords:
+      
       row = (target_filename, attack_filename, best_l2_distortion,best_linf_distortion,\
         best_loss,best_loss1,best_loss2,final_C,str(final_success),target_sentences[0])
       row += tuple(words)+tuple([human_cap])
@@ -441,11 +430,12 @@ def main(_):
     record.close()
     print("****************************************** END OF THIS ATTACK ******************************************")
 
+  sess.close()
   inf_sess.close()
   if FLAGS.use_keywords or FLAGS.targeted:
     target_sess.close()
   
-  sess.close()
+  
 
 
 

@@ -363,7 +363,7 @@ class CarliniL2:
             assign_epoch = tf.assign_add(self.epoch, 1)
             return tf.group(assign_var, assign_mt, assign_vt, assign_epoch)
 
-    def attack(self, imgs, sess, inf_sess, model, inf_model, vocab, cap_key_words, cap_key_words_mask, attackid, try_id, iter_per_sentence=1, attack_const = 1.0):
+    def attack(self, imgs, sess, inf_sess, model, inf_model, vocab, cap_key_words, cap_key_words_mask, attackid, try_id, beam_size, iter_per_sentence=1, attack_const = 1.0):
         """
         Perform the L_2 attack on the given images for the given targets.
 
@@ -374,12 +374,12 @@ class CarliniL2:
         print('go up to',len(imgs))
         for i in range(0,len(imgs),self.batch_size):
             print('tick',i)
-            t = self.attack_batch(imgs[i:i+self.batch_size], sess, inf_sess, model, inf_model, vocab, cap_key_words, cap_key_words_mask, iter_per_sentence, attackid, try_id, attack_const)
+            t = self.attack_batch(imgs[i:i+self.batch_size], sess, inf_sess, model, inf_model, vocab, cap_key_words, cap_key_words_mask, iter_per_sentence, attackid, try_id, beam_size, attack_const)
             # r.extend(t[0])
         return t
         # return np.array(r)
 
-    def attack_batch(self, imgs, sess, inf_sess, model, inf_model, vocab, key_words, key_words_mask, iter_per_sentence, attackid, try_id, attack_const = 1.0):
+    def attack_batch(self, imgs, sess, inf_sess, model, inf_model, vocab, key_words, key_words_mask, iter_per_sentence, attackid, try_id, beam_size, attack_const = 1.0):
         max_caption_length = 20
         batch_size = self.batch_size
 
@@ -402,7 +402,7 @@ class CarliniL2:
         # set the variables so that we don't have to send them over again
         if self.use_keywords:
             # TODO: use inference mode here
-            generator = caption_generator.CaptionGenerator(inf_model, vocab, beam_size = 3)
+            generator = caption_generator.CaptionGenerator(inf_model, vocab, beam_size = beam_size)
             captions = generator.beam_search(inf_sess, imgs[0])
             infer_caption = captions[0].sentence
             # infer_caption = [1, 0, 11, 46, 0, 195, 4, 33, 5, 0, 155, 3, 2]
@@ -508,7 +508,7 @@ class CarliniL2:
                             best_loss1 = l1
                             best_loss2 = l2
                             best_lp = lps[0]
-                        print("<<<<<<<<<<<<<< a valid attack is found, lp =", lps[0], ", best =", best_lp, ">>>>>>>>>>>>>>>>>>>")
+                        print("<<<<<<<<<<<<<< a valid attack is found, lp =", lps[0], ", best =", best_lp, "best_loss=", best_loss, ">>>>>>>>>>>>>>>>>>>")
                 else:
                     if l < best_loss:
                         best_img = np.array(nimg)
