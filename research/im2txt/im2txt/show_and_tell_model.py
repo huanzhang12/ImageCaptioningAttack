@@ -1,3 +1,5 @@
+## Copyright (C) 2017, Hongge Chen <chenhg@mit.edu>.
+## Copyright (C) 2017, Huan Zhang <ecezhang@ucdavis.edu>.
 # Copyright 2016 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
