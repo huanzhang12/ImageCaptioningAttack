@@ -19,7 +19,8 @@ Before you do this, please go to run_attack.sh and specify 4 paths:
 
 In this code we provide 4 attack modes: targeted caption attack, untargeted caption attack, targeted keyword attack and untargeted keyword attack. 
 
-We have two boolean parameters to control the attack mode, "use_keywords" and "targeted". For example, ```--use_keywords=False``` and ```--targeted=True``` give you targeted caption attack. 
+We have two boolean parameters to control the attack mode, "use_keywords" and "targeted". 
+For example, ```--use_keywords=False``` and ```--targeted=True``` give you targeted caption attack. 
 
 We also have a parameter "use_logits" for you to choose between the logits loss or log-prob loss. To use logits loss, simply add ```--use_logits=True``` and to use log-prob loss, add ```--use_logits=False```. The detailed form of our losses can be find in our paper.
 
