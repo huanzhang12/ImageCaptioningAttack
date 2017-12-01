@@ -11,7 +11,7 @@ To run the attack on MSCOCO dataset, you need to bash run_attack.sh. Before you 
 
 3. ${CAPTION_FILE} is the path to the validation set's caption file (for example ../coco-caption/annotations/captions_val2014.json)
 
-4. ${IMAGE_DIRECOTRY} is the directory of MSCOCO validation set (for example ../mscoco/image/val2014/)
+4. ${IMAGE_DIRECTORY} is the directory of MSCOCO validation set (for example ../mscoco/image/val2014/)
 
 In this code we provide 4 attack modes: targeted caption attack, untargeted caption attack, targeted keyword attack and untargeted keyword attack. 
 
