@@ -218,6 +218,7 @@ def main(_):
       raw_probs = raw_probs + [math.exp(raw_caption.logprob)]
 
     if FLAGS.targeted:
+      # If it's targeted attack, we pick another image as our target image to generate target caption for us.
       target_filename = filenames[j+FLAGS.offset]
       print("Captions for target image %s:" % os.path.basename(target_filename))
       with tf.gfile.GFile(image_directory+target_filename, "rb") as f:
@@ -233,18 +234,21 @@ def main(_):
         target_sentences = target_sentences + [target_sentence]
         target_probs = target_probs + [math.exp(target_caption.logprob)]
     else:
+      # If it's untargeted, our target sentence is the attack image's own original caption.
       target_sentences = raw_sentences
       target_probs = raw_probs
       target_filename = attack_filename
 
     if FLAGS.use_keywords:
       if FLAGS.input_feed:
+        # If there is an input feed, we use input feed as our keywords.
         words = FLAGS.input_feed.split()
       else:
+        # If there is no input feed, we use select keywords from the target caption. 
         target_sentences_words = set(target_sentences[0].split())
         raw_sentences_words = set(raw_sentences[0].split())
         if FLAGS.targeted:
-          # exclude the words in the original caption.
+          # If tagreted, we also need to exclude the words in the original caption.
           word_candidates = list((target_sentences_words & good_words) - raw_sentences_words)
           word_candidates.sort()
         else:  
@@ -254,6 +258,7 @@ def main(_):
         print("words not enough for this attack!")
         print("****************************************** END OF THIS ATTACK ******************************************")
         continue
+      # Randomly select keywords from all candidates.
       words = list(np.random.choice(word_candidates, keywords_num, replace=False))
 
     
@@ -331,7 +336,8 @@ def main(_):
           print("BLEU by nltk is:", nltk_BLEU)
           success += [nltk_BLEU<0.5]
           '''
-          # if untargeted, we always assume fail, then we always save fail log
+          # For untargeted and caption based attack, there is no simple criterion to determine an attack is successful or not. We need to calculate the scores.
+          # So here we always assumee the attack is fail, then we save fail log for score calculation.
           success += [False]
 
       print("Attack with this C is successful?", success[try_index])
@@ -343,6 +349,8 @@ def main(_):
       print("L2 distortion is", l2_distortion)
       print("L_inf distortion is", linf_distortion)
       if success[try_index]:
+        # Among the successful attacks, we select the one with minimum distortion as our final result.
+        # Note this one may not correspond to minimum C.
         if FLAGS.norm == "l2":
           if l2_distortion<best_l2_distortion: 
             best_adv = adv
@@ -360,6 +368,7 @@ def main(_):
         else:
           raise ValueError("unsupported distance metric:" + FLAGS.norm)
       if FLAGS.targeted or FLAGS.use_keywords:
+        # We do binary search to find next C.
         if try_index + 1 < FLAGS.C_search_times:
           if success[try_index]:
             if any(not _ for _ in success):
