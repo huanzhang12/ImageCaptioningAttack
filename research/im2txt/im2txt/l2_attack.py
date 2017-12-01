@@ -275,7 +275,9 @@ class CarliniL2:
                 self.cap_logits = tf.gather_nd(self.logits, self.cap_indices) 
                 print("cap_logits shape:",self.cap_logits.shape)
                 self.logits_mask = tf.scatter_nd(self.cap_indices, tf.ones([true_logits_len]),shape=(true_logits_len, int(self.logits.shape[1])))
+                # we minus 10000 on target word posistion to make sure it is not the largest any more.
                 self.modified_logits = self.logits - 10000 * self.logits_mask
+                # Then if we pick the max, it is the largest among non-target word.
                 self.max_probs = tf.reduce_max(self.modified_logits, axis=1)
                 self.original_max_prob = tf.reduce_max(self.logits, axis=1)
                 if self.TARGETED:
@@ -295,10 +297,6 @@ class CarliniL2:
                 else:
                     self.loss1 = - tf.reduce_sum(self.const*self.output)
                 self.loss = self.loss1
-
-        # self.loss2 = tf.constant(0.0)
-        
-        # self.loss = self.loss1+self.loss2
 
         # regularization loss
         self.loss2 = tf.reduce_sum(self.lpdist)
@@ -377,7 +375,7 @@ class CarliniL2:
             t = self.attack_batch(imgs[i:i+self.batch_size], sess, inf_sess, model, inf_model, vocab, cap_key_words, cap_key_words_mask, iter_per_sentence, attackid, try_id, beam_size, attack_const)
             # r.extend(t[0])
         return t
-        # return np.array(r)
+        
 
     def attack_batch(self, imgs, sess, inf_sess, model, inf_model, vocab, key_words, key_words_mask, iter_per_sentence, attackid, try_id, beam_size, attack_const = 1.0):
         max_caption_length = 20
@@ -401,7 +399,7 @@ class CarliniL2:
 
         # set the variables so that we don't have to send them over again
         if self.use_keywords:
-            # TODO: use inference mode here
+            #use inference mode here
             generator = caption_generator.CaptionGenerator(inf_model, vocab, beam_size = beam_size)
             captions = generator.beam_search(inf_sess, imgs[0])
             infer_caption = captions[0].sentence
@@ -501,6 +499,17 @@ class CarliniL2:
                 true_key_words = key_words[:int(np.sum(key_words_mask))]
                 if self.use_keywords:
                     if self.TARGETED and set(true_key_words).issubset(infer_caption):
+                        # when attack is successful, we pick the adversarial image with minimum distortion
+                        l, l1, l2, lps = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist])
+                        if lps[0] < best_lp:
+                            best_img = np.array(nimg)
+                            best_loss = l
+                            best_loss1 = l1
+                            best_loss2 = l2
+                            best_lp = lps[0]
+                        print("<<<<<<<<<<<<<< a valid attack is found, lp =", lps[0], ", best =", best_lp, "best_loss=", best_loss, ">>>>>>>>>>>>>>>>>>>")
+                    if not self.TARGETED and not bool(set(true_key_words)&set(infer_caption)):
+                        # when attack is successful, we pick the adversarial image with minimum distortion
                         l, l1, l2, lps = self.sess.run([self.loss, self.loss1, self.loss2, self.lpdist])
                         if lps[0] < best_lp:
                             best_img = np.array(nimg)
@@ -510,6 +519,8 @@ class CarliniL2:
                             best_lp = lps[0]
                         print("<<<<<<<<<<<<<< a valid attack is found, lp =", lps[0], ", best =", best_lp, "best_loss=", best_loss, ">>>>>>>>>>>>>>>>>>>")
                 else:
+                    # if the attack is not keywords based, we do not do inference in the iterations. So we do not know the attack is successful or not.
+                    # We pick the adversarial example with minimum loss.
                     if l < best_loss:
                         best_img = np.array(nimg)
                         best_loss1 = l1

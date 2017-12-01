@@ -188,29 +188,12 @@ def main(_):
 
   for j in range(FLAGS.exp_num):
 
-    if FLAGS.targeted or FLAGS.use_keywords:
-      target_filename = filenames[j+FLAGS.offset]
-      print("Captions for target image %s:" % os.path.basename(target_filename))
-      with tf.gfile.GFile(image_directory+target_filename, "rb") as f:
-        target_image = f.read()
-        target_image = target_sess.run(target_preprocessor, {target_image_placeholder: target_image})
-      target_captions = target_generator.beam_search(target_sess, target_image)
-      target_sentences = []
-      target_probs = []
-      for indx, target_caption in enumerate(target_captions):
-        target_sentence = [vocab.id_to_word(w) for w in target_caption.sentence[1:-1]]
-        target_sentence = " ".join(target_sentence)
-        print("  %d) %s (p=%f)" % (1, target_sentence, math.exp(target_caption.logprob)))
-        target_sentences = target_sentences + [target_sentence]
-        target_probs = target_probs + [math.exp(target_caption.logprob)]
-
-
+    
     attack_filename = filenames[len(filenames)-1-j-FLAGS.offset]
     attack_image_id = int(re.match(r"^.*\_(.*)\..*$",attack_filename).group(1))
     human_cap = next((item for item in caption_info if item["image_id"] == attack_image_id))
-    # human_cap = filter(lambda item: item["image_id"] == attack_image_id, caption_info)[0]
-    
     human_cap = human_cap['caption']
+
     print("attack filename:",attack_filename)
     print("human's caption:", human_cap)
     with tf.gfile.GFile(image_directory+attack_filename, "rb") as f:
@@ -232,29 +215,46 @@ def main(_):
       raw_sentences = raw_sentences + [raw_sentence]
       raw_probs = raw_probs + [math.exp(raw_caption.logprob)]
 
-    
+    if FLAGS.targeted:
+      target_filename = filenames[j+FLAGS.offset]
+      print("Captions for target image %s:" % os.path.basename(target_filename))
+      with tf.gfile.GFile(image_directory+target_filename, "rb") as f:
+        target_image = f.read()
+        target_image = target_sess.run(target_preprocessor, {target_image_placeholder: target_image})
+      target_captions = target_generator.beam_search(target_sess, target_image)
+      target_sentences = []
+      target_probs = []
+      for indx, target_caption in enumerate(target_captions):
+        target_sentence = [vocab.id_to_word(w) for w in target_caption.sentence[1:-1]]
+        target_sentence = " ".join(target_sentence)
+        print("  %d) %s (p=%f)" % (1, target_sentence, math.exp(target_caption.logprob)))
+        target_sentences = target_sentences + [target_sentence]
+        target_probs = target_probs + [math.exp(target_caption.logprob)]
+    else:
+      target_sentences = raw_sentences
+      target_probs = raw_probs
+      target_filename = attack_filename
+
     if FLAGS.use_keywords:
       if FLAGS.input_feed:
         words = FLAGS.input_feed.split()
       else:
-        # target_sentences_words = set([item for sublist in target_sentences for item in sublist.split()])
         target_sentences_words = set(target_sentences[0].split())
-        # raw_sentences_words = set([item for sublist in raw_sentences for item in sublist.split()])
         raw_sentences_words = set(raw_sentences[0].split())
-        word_candidates = list((target_sentences_words & good_words) - raw_sentences_words)
-        word_candidates.sort()
-        
-        if len(word_candidates)<keywords_num:
-          print("words not enough for this attack!")
-          print("****************************************** END OF THIS ATTACK ******************************************")
-          continue
-        words = list(np.random.choice(word_candidates, keywords_num, replace=False))
+        if FLAGS.targeted:
+          # exclude the words in the original caption.
+          word_candidates = list((target_sentences_words & good_words) - raw_sentences_words)
+          word_candidates.sort()
+        else:  
+          word_candidates = list((target_sentences_words & good_words))
+          word_candidates.sort()
+      if len(word_candidates)<keywords_num:
+        print("words not enough for this attack!")
+        print("****************************************** END OF THIS ATTACK ******************************************")
+        continue
+      words = list(np.random.choice(word_candidates, keywords_num, replace=False))
 
-    if not FLAGS.targeted and not FLAGS.use_keywords:
-        target_sentences = raw_sentences
-        target_probs = raw_probs
-        target_filename = attack_filename
-
+    
     # run multiple attacks
     success = []
     C_val = [FLAGS.C]
@@ -315,7 +315,10 @@ def main(_):
       print("  %d) %s (p=%f)" % (1, adv_sentence, math.exp(adv_caption.logprob)))
 
       if FLAGS.use_keywords:
-        success += [set(words)<set(adv_sentence.split())]
+        if FLAGS.targeted:
+          success += [set(words)<set(adv_sentence.split())]
+        else:
+          success += [not bool(set(words)&set(adv_sentence.split()))]
       else:
         if FLAGS.targeted:
           success += [(adv_sentence==target_sentences[0])]
@@ -326,6 +329,7 @@ def main(_):
           print("BLEU by nltk is:", nltk_BLEU)
           success += [nltk_BLEU<0.5]
           '''
+          # if untargeted, we always assume fail, then we always save fail log
           success += [False]
 
       print("Attack with this C is successful?", success[try_index])
@@ -353,7 +357,7 @@ def main(_):
             final_C = C_val[try_index]
         else:
           raise ValueError("unsupported distance metric:" + FLAGS.norm)
-      if FLAGS.targeted:
+      if FLAGS.targeted or FLAGS.use_keywords:
         if try_index + 1 < FLAGS.C_search_times:
           if success[try_index]:
             if any(not _ for _ in success):
@@ -441,6 +445,7 @@ def main(_):
 
 def save_fail_log(adv_log, loss_log, loss1_log, loss2_log, l2_distortion_log, linf_distortion_log, success, C_val, record_path, attack_filename, raw_image,human_cap,\
   raw_sentences, raw_probs, inf_sess,inf_generator, vocab, target_info): 
+  # This fail log function saves the attack results for each C.
   for i in range(len(adv_log)):
     show(adv_log[i], record_path+"fail_log/", "fail_adversarial_C_"+str(C_val[i])+attack_filename.replace(".jpg",".png"))
     show(adv_log[i] - raw_image, record_path+"fail_log/", "fail_diff_C_"+str(C_val[i])+attack_filename.replace(".jpg",".png"))
