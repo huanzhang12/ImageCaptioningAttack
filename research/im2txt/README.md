@@ -56,7 +56,7 @@ To run multiple attacks on MSCOCO dataset, you need to do ```bash run_attack.sh.
 
 (iv) ```${IMAGE_DIRECTORY}``` is the directory of MSCOCO validation set (for example ../mscoco/image/val2014/)
 
-There are 4 required parameters, ```OFFSET```, ```NUM_ATTACKS```, ```OUTPUT_DIR```, and ```GPU_number```. When we do the experiments on MSCOCO validation set, we first randomly shuffle the images. Then we pick images in this queue one by one to ```NUM_ATTACKS``` detemines the number of experiments. One experiment means attack on one image. ```OFFSET``` determines the index of the first image to be attacked. ```OUTPUT_DIR``` is the directory in which you save the results. We also add a /fail_log directory in the result directory to save the log to failed attacks. ```GPU_number``` is the index of the GPU you want to use (optional). 
+There are 4 required parameters, ```OFFSET```, ```NUM_ATTACKS```, ```OUTPUT_DIR```, and ```GPU_number```. When we do the experiments on MSCOCO validation set, we first randomly shuffle the images. Then we pick images in this queue one by one to ```NUM_ATTACKS``` detemines the number of experiments. One experiment means attack on one image. ```OFFSET``` determines the index of the first image to be attacked. ```OUTPUT_DIR``` is the directory in which you save the results. We also add a ```/fail_log``` directory in the result directory to save the log to failed attacks. ```GPU_number``` is the index of the GPU you want to use (optional). 
 
  
 
