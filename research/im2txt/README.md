@@ -23,7 +23,7 @@ For example:
 
 First please clone this directory.
 
-### Run Single Demo Attacks on MSCOCO Dataset
+### Run Single Demo Attack on a Give Image
 You can use 
 
 ```bash run_show_and_fool_demo.sh``` 
