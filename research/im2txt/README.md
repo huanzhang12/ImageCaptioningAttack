@@ -1,6 +1,6 @@
 # Show and Fool: Crafting Adversarial Examples for Neural Image Captioning
 
-A TensorFlow implementation of the image-to-text model described in the paper:
+A TensorFlow implementation of the adversarial examples generating models described in the paper:
 
 "Show and Fool: Crafting Adversarial Examples for Neural Image Captioning"
 
