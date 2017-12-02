@@ -1,5 +1,15 @@
+# Show and Fool: Crafting Adversarial Examples for Neural Image Captioning
 
-This is our code for image captioning attack. Our paper can be found on arxiv.
+A TensorFlow implementation of the image-to-text model described in the paper:
+
+"Show and Fool: Crafting Adversarial Examples for Neural Image Captioning"
+
+Hongge Chen^*, Huan Zhang^*, Pin-Yu Chen, Jinfeng Yi and Cho-Jui Hsieh
+
+
+Full text available at: (arxiv link)
+
+
 
 First please clone this directory.
 
