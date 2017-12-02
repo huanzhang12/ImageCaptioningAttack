@@ -1,4 +1,7 @@
 #!/bin/bash
+## Copyright (C) 2017, Hongge Chen <chenhg@mit.edu>
+## Copyright (C) 2017, Huan Zhang <ecezhang@ucdavis.edu>
+# Use this bash code to do a quick run of show-and-fool demo on a single image 
 if [ "$#" -le 2 ]; then
     echo "Usage:" $0 "<offset> <number_attacks> <output_directory> [option 1] [option 2] ..."
     echo "Example:" $0 "0 100 debug_dir --use_keywords --input_feed=\"dog cat\""
