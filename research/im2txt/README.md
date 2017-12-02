@@ -14,8 +14,9 @@ Full text available at: (arxiv link)
 
 ### Introduction
 
-The *Show-and-Fool* model is a deep neural network that learns how to describe
-the content of images. For example:
+The *Show-and-Fool* model is designed to generate adversarial examples for neural image captioning. Our model is based on  [Show and Tell](https://github.com/tensorflow/models/tree/master/research/im2txt). 
+
+For example:
 
 ![Example captions](ReadmeImages/Fig_nadal_2_small.png)
 ![Example captions](ReadmeImages/Fig_stopsign_2_small.png)
