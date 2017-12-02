@@ -158,4 +158,16 @@ py_binary(
     ],
 )
 
+py_binary(
+    name = "show_and_fool_demo",
+    srcs = ["show_and_fool_demo.py"],
+    srcs_version = "PY2AND3",
+    deps = [
+        ":configuration",
+        ":attack_wrapper",
+	":inference_wrapper",
+        "//im2txt/inference_utils:caption_generator",
+        "//im2txt/inference_utils:vocabulary",
+    ],
+)
 
