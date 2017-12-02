@@ -35,7 +35,7 @@ mkdir -p ${OUTPUT_DIR}
 #    source ${HOME}/.bashrc
 #    source activate huanpy36
 # fi
-source activate huanpy36
+source activate huanpy36 # activate your tensorflow environment
 VOCAB_FILE="im2txt/pretrained/word_counts.txt"
 CHECKPOINT_PATH="im2txt/pretrained/model2.ckpt-2000000"
 bazel build -c opt im2txt/show_and_fool_demo
