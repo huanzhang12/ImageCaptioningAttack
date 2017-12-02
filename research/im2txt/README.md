@@ -17,7 +17,8 @@ Full text available at: (arxiv link)
 The *Show-and-Fool* model is a deep neural network that learns how to describe
 the content of images. For example:
 
-
+![Example captions](ReadmeImages/Fig_nadal_2_small.png)
+![Example captions](ReadmeImages/Fig_stopsign_2_small.png)
 First please clone this directory.
 
 1. To run multiple attacks on MSCOCO dataset, you need to do ```bash run_attack.sh. ```
