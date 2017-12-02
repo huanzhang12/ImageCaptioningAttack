@@ -10,6 +10,13 @@ Hongge Chen\*, Huan Zhang\*, Pin-Yu Chen, Jinfeng Yi and Cho-Jui Hsieh
 Full text available at: (arxiv link)
 
 
+## Overview
+
+### Introduction
+
+The *Show-and-Fool* model is a deep neural network that learns how to describe
+the content of images. For example:
+
 
 First please clone this directory.
 
