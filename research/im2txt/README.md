@@ -4,7 +4,7 @@ A TensorFlow implementation of the adversarial examples generating models descri
 
 "Show and Fool: Crafting Adversarial Examples for Neural Image Captioning"
 
-Hongge Chen^*, Huan Zhang^*, Pin-Yu Chen, Jinfeng Yi and Cho-Jui Hsieh
+Hongge Chen\*, Huan Zhang\*, Pin-Yu Chen, Jinfeng Yi and Cho-Jui Hsieh
 
 
 Full text available at: (arxiv link)
