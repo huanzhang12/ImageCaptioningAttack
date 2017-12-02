@@ -22,6 +22,6 @@ For example, ```--use_keywords=False``` and ```--targeted=True``` give you targe
 We also have a parameter ```use_logits``` for you to choose between the logits loss or log-prob loss. To use logits loss, simply add ```--use_logits=True``` and to use log-prob loss, add ```--use_logits=False```. The detailed form of our losses can be find in our paper. There are other parameters for you to tune, such as number of iterations, initial constant C, norm (l2 or l_infinity) and beam search size. You can check ```run_attack_BATCH_search_C.py``` for details.
 
 
-2. Also, you can use ```bash run_show_and_fool_demo.sh. ``` to do a quick attack on a single image. It is similar to ```bash run_attack.sh. ``` except that you need to provide attacked image's path ```ATTACK_FILEPATH``` and targeted image's path ```TARGET_FILEPATH```. 
+2. Also, you can use ```bash run_show_and_fool_demo.sh. ``` to do a quick attack on a single image. It is similar to ```bash run_attack.sh. ``` except that you need to provide attacked image's path ```ATTACK_FILEPATH``` and targeted image's path ```TARGET_FILEPATH```. We also provide you some demo images from MSCOCO. You can find them in ```im2txt/demo_image```. 
 
 
