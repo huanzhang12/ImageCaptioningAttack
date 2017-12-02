@@ -31,7 +31,7 @@ You can use
 
 to do a quick attack on a single image. You are required to provide 4 parameters: 
 
-```ATTACK_FILEPATH TARGET_FILEPATH OUTPUT_DIR GPU_number```
+```ATTACK_FILEPATH```, ```TARGET_FILEPATH```, ```OUTPUT_DIR```, ```GPU_number```
 
 ```ATTACK_FILEPATH``` is the attacked image's path and ```TARGET_FILEPATH``` is the targeted image's path. ```OUTPUT_DIR``` is the directory in which you save the results. We also add a /fail_log directory in the result directory to save the log to failed attacks. ```GPU_number``` is the index of the GPU you want to use (optional). We also provide you some demo images from MSCOCO. You can find them in ```im2txt/demo_image```. Before you run, please go to run_attack.sh and specify 2 paths:
 
@@ -39,7 +39,7 @@ to do a quick attack on a single image. You are required to provide 4 parameters
 
 (ii) ```${CHECKPOINT_PATH}``` is the path to the checkpoint file.
 
-In this code we provide 4 attack modes: targeted caption attack, untargeted caption attack, targeted keyword attack and untargeted keyword attack. We have two boolean parameters to control the attack mode, "use_keywords" and "targeted". 
+In this code we provide 4 attack modes: targeted caption attack, untargeted caption attack, targeted keyword attack and untargeted keyword attack. We have two boolean parameters to control the attack mode, ```use_keywords``` and ```targeted```. 
 For example, ```--use_keywords=False``` and ```--targeted=True``` give you targeted caption attack. If you are using untargeted attack please use ```ATTACK_FILEPATH``` also as ```TARGET_FILEPATH```. 
 
 We also have a parameter ```use_logits``` for you to choose between the logits loss or log-prob loss. To use logits loss, simply add ```--use_logits=True``` and to use log-prob loss, add ```--use_logits=False```. The detailed form of our losses can be find in our paper. There are other parameters for you to tune, such as number of iterations, initial constant C, norm (l2 or l_infinity) and beam search size. You can check ```run_attack_BATCH_search_C.py``` for details.
