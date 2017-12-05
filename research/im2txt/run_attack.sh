@@ -11,7 +11,6 @@ fi
 OFFSET=$1
 NUM_ATTACKS=$2
 OUTPUT_DIR=$3
-GPU_number=$4
 
 shift
 shift
@@ -44,7 +43,7 @@ CAPTION_FILE="/home/hongge/im2txt/EasyCocoEval/coco-caption/annotations/captions
 IMAGE_DIRECTORY="/data2/mscoco/image/val2014/"
 bazel build -c opt im2txt/run_attack_BATCH_search_C
 set -x
-CUDA_VISIBLE_DEVICES=${GPU_number} bazel-bin/im2txt/run_attack_BATCH_search_C --checkpoint_path=${CHECKPOINT_PATH}  --caption_file=${CAPTION_FILE} --vocab_file=${VOCAB_FILE}   --input_files=${IMAGE_FILE} --image_directory=${IMAGE_DIRECTORY} --use_logits=True --exp_num=${NUM_ATTACKS} --offset=${OFFSET} --result_directory="${OUTPUT_DIR}" --norm="l2" -seed=8 --C=1 "${PARAMS[@]}" 2>&1|tee ${OUTPUT_DIR}/log_$OFFSET.txt
+bazel-bin/im2txt/run_attack_BATCH_search_C --checkpoint_path=${CHECKPOINT_PATH}  --caption_file=${CAPTION_FILE} --vocab_file=${VOCAB_FILE}   --input_files=${IMAGE_FILE} --image_directory=${IMAGE_DIRECTORY} --use_logits=True --exp_num=${NUM_ATTACKS} --offset=${OFFSET} --result_directory="${OUTPUT_DIR}" --norm="l2" -seed=8 --C=1 "${PARAMS[@]}" 2>&1|tee ${OUTPUT_DIR}/log_$OFFSET.txt
 set +x
 rm -r bazel-*
 source deactivate
