@@ -339,8 +339,9 @@ def main(_):
     best_adv = adv
     best_loss, best_loss1, best_loss2 = loss, loss1, loss2
   
-  show(best_adv, record_path, "adversarial_"+os.path.basename(attack_filename).replace(".jpg",".png"))
-  show(best_adv - raw_image, record_path, "diff_"+os.path.basename(attack_filename).replace(".jpg",".png"))
+  _, attack_ext = os.path.splitext(attack_filename)
+  show(best_adv, record_path, "adversarial_"+os.path.basename(attack_filename).replace(attack_ext,".png"))
+  show(best_adv - raw_image, record_path, "diff_"+os.path.basename(attack_filename).replace(attack_ext,".png"))
 
   
   best_l2_distortion = np.sum((best_adv - raw_image)**2)**.5
@@ -348,7 +349,7 @@ def main(_):
   print("best L2 distortion is", best_l2_distortion)
   print("best L_inf distortion is", best_linf_distortion)
 
-  adv_filename = record_path+"adversarial_"+os.path.basename(attack_filename).replace(".jpg",".png.npy")
+  adv_filename = record_path+"adversarial_"+os.path.basename(attack_filename).replace(attack_ext,".png.npy")
   adv_image = np.squeeze(np.load(adv_filename))
   adv_captions = inf_generator.beam_search(inf_sess, adv_image)
   print("Captions for adversarial image %s:" % os.path.basename(adv_filename))
