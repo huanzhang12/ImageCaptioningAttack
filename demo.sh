@@ -8,11 +8,11 @@ if [ "$#" -le 2 ]; then
     echo "Example:" $0 "examples/image1.png examples/image2.png result_dir --use_keywords --input_feed=\"dog frisbee\""
     exit 1
 fi
-
+###################
 ATTACK_FILEPATH=$1
 TARGET_FILEPATH=$2
 OUTPUT_DIR=$3
-
+###################
 shift
 shift
 shift
