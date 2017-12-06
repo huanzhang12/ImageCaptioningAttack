@@ -87,13 +87,13 @@ An example of targeted keywords attack with keywords `dog` and `frisbee` is:
 
 ### Run Multiple Attacks on MSCOCO Dataset
 
-To run multiple attacks on MSCOCO dataset, first please download MSCOCO. Then you need to do `./run_attack.sh`. It is similar to `./demo.sh`. **But before you run this code, please go to `run_attack.sh` and specify 2 paths:**
+To run multiple attacks on MSCOCO dataset, first you need to download MSCOCO dataset (images and caption files). **Then please go to `run_attack.sh` and specify 2 paths:**
 
 (i) `${CAPTION_FILE}` is the path to the validation set's caption file, in JSON format (for example ../coco-caption/annotations/captions_val2014.json)
 
 (ii) `${IMAGE_DIRECTORY}` is the directory of MSCOCO validation set (for example ../mscoco/image/val2014/)
 
-There are 3 required parameters, `OFFSET`. `NUM_ATTACKS` and `OUTPUT_DIR`. When we do the experiments on MSCOCO validation set, we first randomly shuffle the images. Then we pick images in this queue one by one to attack. `NUM_ATTACKS` detemines the number of experiments. One experiment means attack on one image. `OFFSET` ss the index of the first image in the queue to be attacked. `OUTPUT_DIR` is the directory in which you save the results. We also add a `/fail_log` directory in the result directory to save the log of failed attacks. 
+Then you need to do `./run_attack.sh`. It is similar to `./demo.sh`. There are 3 required parameters, `OFFSET`. `NUM_ATTACKS` and `OUTPUT_DIR`. When we do the experiments on MSCOCO validation set, we first randomly shuffle the images. Then we pick images in this queue one by one to attack. `NUM_ATTACKS` detemines the number of experiments. One experiment means attack on one image. `OFFSET` ss the index of the first image in the queue to be attacked. `OUTPUT_DIR` is the directory in which you save the results. We also add a `/fail_log` directory in the result directory to save the log of failed attacks. 
 
 We also have a parameter `use_logits` for you to choose between the logits loss or log-prob loss. To use logits loss, simply add `--use_logits=True` and to use log-prob loss, add `--use_logits=False`. By default we use logits loss. The detailed forms of our losses can be find in our paper. There are other parameters for you to tune, such as number of iterations, initial constant C, norm (l2 or l_infinity) and beam search size. You can check `run_attack_BATCH_search_C.py` for details.
 
