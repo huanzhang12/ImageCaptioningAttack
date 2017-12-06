@@ -28,6 +28,7 @@ sudo apt-get install python3-pip
 sudo pip3 install --upgrade pip
 sudo pip3 install pillow scipy numpy tensorflow-gpu keras
 ```
+Note: Tensorflow 1.3 or later is required.
 
 ## Getting Started
 
