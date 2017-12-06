@@ -28,7 +28,7 @@ sudo apt-get install python3-pip
 sudo pip3 install --upgrade pip
 sudo pip3 install pillow scipy numpy tensorflow-gpu keras
 ```
-Note: Tensorflow 1.3 or later is required.
+Note: Tensorflow 1.3 or later is required. tf.contrib.rnn.BasicLSTMCell is used in Show and Tell model.
 
 ## Getting Started
 
