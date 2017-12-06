@@ -94,9 +94,24 @@ To run multiple attacks on MSCOCO dataset, first you need to download MSCOCO dat
 
 (ii) `${IMAGE_DIRECTORY}` is the directory of MSCOCO validation set (for example ../mscoco/image/val2014/)
 
-Then you need to do `./run_attack.sh`. It is similar to `./demo.sh`. There are 3 required parameters, `OFFSET`. `NUM_ATTACKS` and `OUTPUT_DIR`. When we do the experiments on MSCOCO validation set, we first randomly shuffle the images. Then we pick images in this queue one by one to attack. `NUM_ATTACKS` detemines the number of experiments. One experiment means attack on one image. `OFFSET` ss the index of the first image in the queue to be attacked. `OUTPUT_DIR` is the directory in which you save the results. We also add a `/fail_log` directory in the result directory to save the log of failed attacks. 
+Then you need to do `./run_attack.sh`. It is similar to `./demo.sh`. There are 3 required parameters, `OFFSET`. `NUM_ATTACKS` and `OUTPUT_DIR`. When we do the experiments on MSCOCO validation set, we first randomly shuffle the images. Then we pick images in this queue one by one to attack. `NUM_ATTACKS` detemines the number of experiments. One experiment means attack on one image. `OFFSET` is the index of the first image in the queue to be attacked. `OUTPUT_DIR` is the directory in which you save the results. We also create a `/fail_log` directory in the result directory to save the fail imagess' attcak results with each C. If you choose untargeted caption attack, all attempts are assumed to be fail. 
 
 We also have a parameter `use_logits` for you to choose between the logits loss or log-prob loss. To use logits loss, simply add `--use_logits=True` and to use log-prob loss, add `--use_logits=False`. By default we use logits loss. The detailed forms of our losses can be find in our paper. There are other parameters for you to tune, such as number of iterations, initial constant C, norm (l2 or l_infinity) and beam search size. You can check `run_attack_BATCH_search_C.py` for details.
+
+Some examples:
+
+(i) (using default parameters) `./run_attack.sh 0 100 result_dir`
+
+Attack 100 images starting from the 0th image. The attacks are targeted caption attack with 1000 iterations for each C. The attack results will be saved in `/result_dir`.
+
+(ii) `./run_attack.sh 0 100 result_dir --use_keywords=True --keywords_num=2 --iters=200`
+
+Attack 100 images starting from the 0th image. The attacks are targeted keyword attack with 2 keywords selected for each image and 200 iterations for each C. The attack results will be saved in `/result_dir`.
+
+(iii) `./run_attack.sh 0 100 result_dir --targeted=False --iters=200`
+
+Attack 100 images starting from the 0th image. The attacks are untargeted caption attack with 200 iterations for each C. The attack results will be saved in `/result_dir`.
+
 
  
 
