@@ -28,6 +28,7 @@ sudo apt-get install python3-pip
 sudo pip3 install --upgrade pip
 sudo pip3 install pillow scipy numpy tensorflow-gpu keras
 ```
+Note: Tensorflow 1.3 or later is required because `tf.contrib.rnn.BasicLSTMCell` is used in Show and Tell model.
 
 ## Getting Started
 
@@ -67,7 +68,7 @@ We provided some example images from the COCO dataset in the `examples` folder,
 so you can quickly test the targeted attack by running:
 
 ```
-./demo.sh examples/image1.png examples/image2.png result_dir
+./demo.sh examples/image1.jpg examples/image2.jpg result_dir
 ```
 
 In this demo we provide 4 attack modes: targeted caption attack, untargeted
@@ -82,20 +83,20 @@ By default, `--targeted=True --use_keywords=False`.
 An example of targeted keywords attack with keywords `dog` and `frisbee` is:
 
 ```
-./demo.sh examples/image1.png examples/image2.png result_dir --use_keywords --input_feed="dog frisbee"
+./demo.sh examples/image1.jpg examples/image2.jpg result_dir --use_keywords --input_feed="dog frisbee"
 ```
 
 ### Run Multiple Attacks on MSCOCO Dataset
 
-To run multiple attacks on MSCOCO dataset, you need to do `./run_attack.sh. ` It is similar to `./demo.sh`. But before you do this, please go to `run_attack.sh` and specify 2 paths:
+To run multiple attacks on MSCOCO dataset, first you need to download MSCOCO dataset (images and caption files). Please refer to the "Prepare the Training Data" section in [Show and Tell's readme file](https://github.com/tensorflow/models/blob/master/research/im2txt/README.md) (we also have a copy here in this repo as `ShowAndTellREADME.md`). After you finish your download, **please go to `run_attack.sh` and specify 2 paths:**
 
 (i) `${CAPTION_FILE}` is the path to the validation set's caption file, in JSON format (for example ../coco-caption/annotations/captions_val2014.json)
 
 (ii) `${IMAGE_DIRECTORY}` is the directory of MSCOCO validation set (for example ../mscoco/image/val2014/)
 
-There are 3 required parameters, `OFFSET`. `NUM_ATTACKS` and `OUTPUT_DIR`. When we do the experiments on MSCOCO validation set, we first randomly shuffle the images. Then we pick images in this queue one by one to attack. `NUM_ATTACKS` detemines the number of experiments. One experiment means attack on one image. `OFFSET` ss the index of the first image in the queue to be attacked. `OUTPUT_DIR` is the directory in which you save the results. We also add a `/fail_log` directory in the result directory to save the log of failed attacks. 
+Then you need to do `./run_attack.sh`. It is similar to `./demo.sh`. There are 3 required parameters, `OFFSET`. `NUM_ATTACKS` and `OUTPUT_DIR`. When we do the experiments on MSCOCO validation set, we first randomly shuffle the images. Then we pick images in this queue one by one to attack. `NUM_ATTACKS` detemines the number of experiments. One experiment means attack on one image. `OFFSET` ss the index of the first image in the queue to be attacked. `OUTPUT_DIR` is the directory in which you save the results. We also add a `/fail_log` directory in the result directory to save the log of failed attacks. 
 
-We also have a parameter `use_logits` for you to choose between the logits loss or log-prob loss. To use logits loss, simply add `--use_logits=True` and to use log-prob loss, add `--use_logits=False`. The detailed form of our losses can be find in our paper. There are other parameters for you to tune, such as number of iterations, initial constant C, norm (l2 or l_infinity) and beam search size. You can check `run_attack_BATCH_search_C.py` for details.
+We also have a parameter `use_logits` for you to choose between the logits loss or log-prob loss. To use logits loss, simply add `--use_logits=True` and to use log-prob loss, add `--use_logits=False`. By default we use logits loss. The detailed forms of our losses can be find in our paper. There are other parameters for you to tune, such as number of iterations, initial constant C, norm (l2 or l_infinity) and beam search size. You can check `run_attack_BATCH_search_C.py` for details.
 
  
 
