@@ -67,7 +67,7 @@ We provided some example images from the COCO dataset in the `examples` folder,
 so you can quickly test the targeted attack by running:
 
 ```
-./demo.sh examples/image1.png examples/image2.png result_dir
+./demo.sh examples/image1.jpg examples/image2.jpg result_dir
 ```
 
 In this demo we provide 4 attack modes: targeted caption attack, untargeted
@@ -82,7 +82,7 @@ By default, `--targeted=True --use_keywords=False`.
 An example of targeted keywords attack with keywords `dog` and `frisbee` is:
 
 ```
-./demo.sh examples/image1.png examples/image2.png result_dir --use_keywords --input_feed="dog frisbee"
+./demo.sh examples/image1.jpg examples/image2.jpg result_dir --use_keywords --input_feed="dog frisbee"
 ```
 
 ### Run Multiple Attacks on MSCOCO Dataset
