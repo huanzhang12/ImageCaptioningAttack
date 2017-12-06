@@ -87,7 +87,7 @@ An example of targeted keywords attack with keywords `dog` and `frisbee` is:
 
 ### Run Multiple Attacks on MSCOCO Dataset
 
-To run multiple attacks on MSCOCO dataset, first you need to download MSCOCO dataset (images and caption files). **Then please go to `run_attack.sh` and specify 2 paths:**
+To run multiple attacks on MSCOCO dataset, first go to http://cocodataset.org/#download and download MSCOCO dataset (images and caption files). **Then please go to `run_attack.sh` and specify 2 paths:**
 
 (i) `${CAPTION_FILE}` is the path to the validation set's caption file, in JSON format (for example ../coco-caption/annotations/captions_val2014.json)
 
