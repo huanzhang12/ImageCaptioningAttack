@@ -2,7 +2,7 @@
 ## Copyright (C) 2017, Hongge Chen <chenhg@mit.edu>
 ## Copyright (C) 2017, Huan Zhang <ecezhang@ucdavis.edu>
 # Use this bash code to run multiple attacks using MSCOCO dataset.
-# ATTENTION! you need to specify your own CAPTION_FILE and IMAGE_DIRECTORY here!
+# ATTENTION! you need to specify your own CAPTION_FILE and IMAGE_DIRECTORY before running this bash code!
 if [ "$#" -le 2 ]; then
     echo "Usage:" $0 "<offset> <number_attacks> <output_directory> [option 1] [option 2] ..."
     echo "Example:" $0 "0 100 debug_dir --use_keywords --input_feed=\"dog cat\""
