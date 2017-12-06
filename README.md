@@ -87,9 +87,7 @@ An example of targeted keywords attack with keywords `dog` and `frisbee` is:
 
 ### Run Multiple Attacks on MSCOCO Dataset
 
-To run multiple attacks on MSCOCO dataset, first you need to download MSCOCO dataset (images and caption files). Please refer to the "Prepare the Training Data" section in [Show and Tell's readme file](https://github.com/tensorflow/models/blob/master/research/im2txt/README.md) (we also have a copy here in this repo as ShowAndTellREADME.md)
-
-**Then please go to `run_attack.sh` and specify 2 paths:**
+To run multiple attacks on MSCOCO dataset, first you need to download MSCOCO dataset (images and caption files). Please refer to the "Prepare the Training Data" section in [Show and Tell's readme file](https://github.com/tensorflow/models/blob/master/research/im2txt/README.md) (we also have a copy here in this repo as ShowAndTellREADME.md). After you finish your download, **please go to `run_attack.sh` and specify 2 paths:**
 
 (i) `${CAPTION_FILE}` is the path to the validation set's caption file, in JSON format (for example ../coco-caption/annotations/captions_val2014.json)
 
