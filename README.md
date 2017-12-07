@@ -7,7 +7,7 @@ A TensorFlow implementation of the adversarial examples generating models descri
 Hongge Chen\*, Huan Zhang\*, Pin-Yu Chen, Jinfeng Yi and Cho-Jui Hsieh
 
 
-Full text available at: (https://arxiv.org/pdf/1712.02051.pdf)
+Full text available at: https://arxiv.org/pdf/1712.02051.pdf
 
 
 ## Introduction
