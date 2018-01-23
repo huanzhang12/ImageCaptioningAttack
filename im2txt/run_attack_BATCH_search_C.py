@@ -123,7 +123,7 @@ def main(_):
     good_words = set(noun+verb+adjective+adverb)
   else:
     header = ("target filename","attack filename","L2 distortion","L_inf distortion","loss","loss1","loss2",\
-      "optimal C","attack successful?")
+      "optimal C","attack successful?","human caption")
     header += tuple([val for pair in zip(["target caption "+str(i+1) for i in range(beam_size)], ["prob of target caption "+str(i+1) for i in range(beam_size)]) for val in pair])
     header += tuple([val for pair in zip(["caption before attack "+str(i+1) for i in range(beam_size)], ["prob of caption before attack "+str(i+1) for i in range(beam_size)]) for val in pair])
     header += tuple([val for pair in zip(["caption after attack "+str(i+1) for i in range(beam_size)], ["prob of caption after attack "+str(i+1) for i in range(beam_size)]) for val in pair])
