@@ -4,8 +4,8 @@
 # Use this bash code to do a quick run of show-and-fool demo on a single image 
 if [ "$#" -le 2 ]; then
     echo "Usage:" $0 "<image_to_attack> <image_of_target_sentence> <result_output_directory> [additional option 1] [additional option 2] ..."
-    echo "Example:" $0 "examples/image1.png examples/image2.png result_dir"
-    echo "Example:" $0 "examples/image1.png examples/image2.png result_dir --use_keywords --input_feed=\"dog frisbee\""
+    echo "Example:" $0 "examples/image1.jpg examples/image2.jpg result_dir"
+    echo "Example:" $0 "examples/image1.jpg examples/image2.jpg result_dir --use_keywords --input_feed=\"dog frisbee\""
     exit 1
 fi
 ###################
