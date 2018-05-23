@@ -1,11 +1,12 @@
-# Show and Fool: Crafting Adversarial Examples for Neural Image Captioning
+# Attacking Visual Language Grounding with Adversarial Examples: A Case Study on Neural Image Captioning
 
 A TensorFlow implementation of the adversarial examples generating models described in the paper:
 
-"Show and Fool: Crafting Adversarial Examples for Neural Image Captioning"
+"Attacking Visual Language Grounding with Adversarial Examples: A Case Study on Neural Image Captioning"
 
 Hongge Chen\*, Huan Zhang\*, Pin-Yu Chen, Jinfeng Yi and Cho-Jui Hsieh
 
+This paper is accepted by the 56th Annual Meeting of the Association for Computational Linguistics (ACL 2018). Hongge Chen and Huan Zhang contribute equally to this work.
 
 Full text available at: https://arxiv.org/pdf/1712.02051.pdf
 
