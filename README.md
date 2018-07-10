@@ -1,3 +1,5 @@
+**As requested by IBM, this repository is moved to https://github.com/IBM/Image-Captioning-Attack, but we aim to keep both repositories synced up.** The code is released under Apache License v2.
+
 # Attacking Visual Language Grounding with Adversarial Examples: A Case Study on Neural Image Captioning
 
 A TensorFlow implementation of the adversarial examples generating models described in the paper:
